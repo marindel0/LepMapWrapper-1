@@ -39,6 +39,13 @@ echo "Relative path: $(dirname ${INPUT})"
 CORENAME=${BASENAME%%.*}
 echo "Resulting files will include \"$CORENAME\" in their names."
 
+#Fix stupid behaviour of zcat on MacOS
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    function zcat { 
+        command zcat < "$1" 
+    }
+fi
+
 LOGFILE="${RUN_STARTS}-Run_LepMap3-${CORENAME}.log"
 echo "logfile (parameters): ${LOGFILE}"
 
@@ -471,4 +478,4 @@ function Make_LMPlots {
 }
 Make_LMPlots
 
-echo "Búið í bili !!!!"
+echo "End of the pipe - Inspect the output files and log to see whether it ran successfully!"
