@@ -76,7 +76,8 @@ echo
 
 ### How many cpu's should we use?
 function get_cpu_count {
-    CPU_COUNT=$(nproc --all)
+    #CPU_COUNT=$(nproc --all)
+    CPU_COUNT=$(getconf _NPROCESSORS_ONLN)                       make it work cross-platform 
     echo "Number of CPU threads detected on system = $CPU_COUNT"
     One_less=$(($CPU_COUNT-1))
     read -p "How many threads should we use? Suggested - [$One_less]: " CPU
