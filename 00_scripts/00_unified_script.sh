@@ -89,6 +89,9 @@ function get_cpu_count {
     printf "$CPU processors will be used\n\n"
 }
 get_cpu_count
+### TODO # This won't work on MacOS but it's not a showstopper.  
+### sysctl -n hw.logicalcpu could be used, but we will worry about that later.
+
 
 ### Make sure that LepMap3 is present and accessible
 read -p "Where is LepMap3 located? - default [/programs/LepMap3/bin/]: " LEPMAPDIR
@@ -397,7 +400,8 @@ function Order_markers {
     esac
     done
     
-    NB_CHR=$[$(wc -l $REP | cut -d " " -f 1)-2] #nb of linkage groups from step 5
+    # NB_CHR=$[$(wc -l $REP | cut -d " " -f 1)-2]  ##No good on MacOS
+    NB_CHR=$(tail -1 $REP | awk '{print $2}')  #number of linkage groups from step 5
     printf "\nNumber of Chromosomes: $NB_CHR\n"
     
     #other parameters (adjust if needed)
