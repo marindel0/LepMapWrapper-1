@@ -2,9 +2,9 @@
 
 ### Zophonías O. Jónsson - zjons@hi.is - 15.Oct.2022
 ### Unsing ideas and code from github: clairemerot/lepmap3_pipeline 
-RUN_STARTS=$(date '+%y%m%d@%H:%M')
+RUN_STARTS=$(date '+%y%m%d@%H%M')
 
-printf "\nThe unified pipeline script for running LepMap3 - starting at ${RUN_STARTS} \n" 
+printf "\nLepMapWrapper: The unified pipeline script for running LepMap3 - starting at ${RUN_STARTS} \n" 
 
 
 ### Make sure input files are passed as parameters
@@ -38,6 +38,8 @@ echo "Relative path: $(dirname ${INPUT})"
 #CORENAME="$(basename $INPUT .vcf)"
 CORENAME=${BASENAME%%.*}
 echo "Resulting files will include \"$CORENAME\" in their names."
+OUTDIR="LM-Run-${RUN_STARTS}"
+echo "Results and log will be written to ${OUTDIR}"
 
 #Fix stupid behaviour of zcat on MacOS
 if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -46,7 +48,10 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     }
 fi
 
-LOGFILE="${RUN_STARTS}-Run_LepMap3-${CORENAME}.log"
+#make outdir - go there and start logging.
+mkdir $OUTDIR
+
+LOGFILE="${OUTDIR}/${RUN_STARTS}-Run_LepMap3-${CORENAME}.log"
 echo "logfile (parameters): ${LOGFILE}"
 
 {  #Set up the logfile
@@ -77,7 +82,7 @@ echo
 ### How many cpu's should we use?
 function get_cpu_count {
     #CPU_COUNT=$(nproc --all)
-    CPU_COUNT=$(getconf _NPROCESSORS_ONLN)                       make it work cross-platform 
+    CPU_COUNT=$(getconf _NPROCESSORS_ONLN)                       #make it work cross-platform 
     echo "Number of CPU threads detected on system = $CPU_COUNT"
     One_less=$(($CPU_COUNT-1))
     read -p "How many threads should we use? Suggested - [$One_less]: " CPU
@@ -90,8 +95,6 @@ function get_cpu_count {
     printf "$CPU processors will be used\n\n"
 }
 get_cpu_count
-### TODO # This won't work on MacOS but it's not a showstopper.  
-### sysctl -n hw.logicalcpu could be used, but we will worry about that later.
 
 
 ### Make sure that LepMap3 is present and accessible
@@ -129,9 +132,9 @@ function ParentCall {
     #variables 
     #compulsory (file names)
     #GENO_FILE=$INPUT
-    CALL_FILE="03_parent_call_data/data_call_"$CORENAME".gz"
+    CALL_FILE="${OUTDIR}/03_parent_call_data/data_call_"$CORENAME".gz"
     # make the directory to be on the safe side
-    mkdir -p "03_parent_call_data"
+    mkdir -p "${OUTDIR}/03_parent_call_data"
     #touch $CALL_FILE
     #parameters
     #SEX="XLimit=2" #to call marker on sex chromosome in a XY system (use Zlimit=2 in a ZW system or nothing if we don't want sex-chromosome markers)
@@ -173,12 +176,12 @@ function Filtering {
 
     #compulsory (file names)
     #IN_FILE="03_parent_call_data/data_call_"$MIN_COV"_"$i".gz" -- just use the CALL_FILE
-    FILT_FILE="04_filtering/data_f_"$CORENAME"_Miss-"$MISS".gz"
-    CONTIG_FILE="04_filtering/contig_"$CORENAME"_Miss-"$MISS".txt"
-    POS_FILE="04_filtering/pos_"$CORENAME"_Miss-"$MISS".txt"
-    MARKERLIST_FILE="04_filtering/data_f_"$CORENAME"_Miss-"$MISS".markerlist"
+    FILT_FILE="${OUTDIR}/04_filtering/data_f_"$CORENAME"_Miss-"$MISS".gz"
+    CONTIG_FILE="${OUTDIR}/04_filtering/contig_"$CORENAME"_Miss-"$MISS".txt"
+    POS_FILE="${OUTDIR}/04_filtering/pos_"$CORENAME"_Miss-"$MISS".txt"
+    MARKERLIST_FILE="${OUTDIR}/04_filtering/data_f_"$CORENAME"_Miss-"$MISS".markerlist"
     #make sure the diectory exists
-    mkdir -p "04_filtering"
+    mkdir -p "${OUTDIR}/04_filtering"
 
     #run the module
     zcat $CALL_FILE | java -cp $LEPMAPDIR Filtering2 data=- removeNonInformative=1 missingLimit=$MISS MAFLimit=$MAF dataTolerance=$D | gzip > $FILT_FILE
@@ -206,7 +209,7 @@ Filtering
 
 ###Step 5 Separate chromosomes - with some twists
 #first make sure that the directory exists
-mkdir -p "05_map_chromosomes"
+mkdir -p "${OUTDIR}/05_map_chromosomes"
 #Set default values before entering the loop
 LOD=10 ; SIZEL=4
 
@@ -243,7 +246,7 @@ function OptimizeLod {
     echo "Now we can run SeparateChromosomes2 repeatedly to find the optimal LOD cutoff."
     #variables 
     #compulsory (file names)
-    LOD_LOG="05_map_chromosomes/optimize_"$CORENAME"_Miss-"$MISS"_lod.log"
+    LOD_LOG="${OUTDIR}/05_map_chromosomes/optimize_"$CORENAME"_Miss-"$MISS"_lod.log"
 
     printf "" >$LOD_LOG #clear old log the simple way
     printf "\n%s%s\n" "SIZEL fixed at " $SIZEL >$LOD_LOG.text
@@ -275,7 +278,7 @@ function OptimizeSizel {
     SIZEL_HI=${SIZEL_HI:-10}
     echo $SIZEL_HI
     SetLOD
-    SIZEL_LOG="05_map_chromosomes/optimize_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_sizel.log"
+    SIZEL_LOG="${OUTDIR}/05_map_chromosomes/optimize_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_sizel.log"
     
     printf "" >$SIZEL_LOG #clear old log the simple way
     printf "\n%s%s\n" "LOD fixed at " $LOD >$SIZEL_LOG.text
@@ -318,8 +321,8 @@ function SeparateChromosomes {
     printf "\nStep 5c: Run SeparateChromosomes - Generate output files \n"
     echo "LOD set to $LOD and SIZEL set to $SIZEL"
     
-    MAP_FILE="05_map_chromosomes/map_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_Sizel-"$SIZEL".txt"
-    REP_FILE="05_map_chromosomes/map_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_Sizel-"$SIZEL".repartition"
+    MAP_FILE="${OUTDIR}/05_map_chromosomes/map_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_Sizel-"$SIZEL".txt"
+    REP_FILE="${OUTDIR}/05_map_chromosomes/map_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_Sizel-"$SIZEL".repartition"
     #other parameters (adjust if needed)
     ##### D="distortionLod=1 " #to remove markers with H-W distortion in a single family - !Z! this option is not being used as is.
     #RECOMB_1="maleTheta=0" # for species with non-recoùmbining male adjust recombination rate to 0
@@ -345,11 +348,7 @@ function JoinSingles {
     printf "\nStep 6: Run JoinSingles2All - Merge the singles into existing linkage groups \n"
     # The script this was based on had a "while" loop to iterate over multipe families - Could add this back later.
    
-    mkdir -p "06_join_singles"
-    #MAP_FILE="05_map_chromosomes/map_"$CORENAME"_Miss-"$MISS"_LOD_"$LOD"_SIZEL_"$SIZEL".txt"
-    #IN_FILE=$MAP_FILE
-    JS_MAP_FILE="06_join_singles/js_map_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".txt"
-    JS_REP_FILE="06_join_singles/js_map_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".repartition"
+    mkdir -p "${OUTDIR}/06_join_singles"
     
     ### Prompt for different LOD and maybe other parameters
     echo "The current Lod cutoff is $LOD. You can use a lower Lod to merge singles into linkage groups"
@@ -363,9 +362,31 @@ function JoinSingles {
     #RECOMB_1="maleTheta=0" # for species with non-recoùmbining male adjust recombination rate to 0
     #RECOMB_2="femaleTheta=0.03" # 
     #if there are many markers not placed into LG, this module can put them on the LG with a smaller LOD limit 
-    #if this step is relevant, remember to change in the 01_order_marker the path to the map to make it use the map with joinsingle
+    cat <<ENDOFCOMMENT
+This wrapper selects the most basic options for JoinSingles2All but there are a number of other options that can be useful:
 
-    zcat $FILT_FILE | java -cp $LEPMAPDIR JoinSingles2All data=- lodLimit=$JSLOD numThreads=$CPU iterate=1 $SIZEL map=$MAP_FILE > $JS_MAP_FILE
+Additional options:
+         lodDifference=NUM  Required LOD difference [0.0]
+         informativeMask=STR      Use only markers with informative father (1), mother(2), both parents(3) or neither parent(0) [0123]
+         theta=NUM          Fixed recombination fraction [0.0 (Identicals)] [0.03 (All)]
+         (fe)maleTheta=NUM  Fixed recombination fraction separately for both sex [theta]
+                            set maleTheta=0 for species with non-recombining males
+         betweenSameType=1  Only compute LOD scores between identically informative markers (applicable to single family data and Join...Identicals)
+                            Also one has to specify 3 LOD limits (paternal, maternal and both) in this case
+         lod3Mode=NUM       Controls how LOD scores are computed between double informative markers [1]
+         maxDistance=NUM    Only calculate LOD scores between this many markers (JoinSingles2All only) [not set]
+         distortionLod=1    Use segregation distortion aware LOD scores (JoinSingles2All only) [not set]
+         mask=map_file2     Filter out markers not (in group) 1 in the map_file2
+
+ENDOFCOMMENT
+    read -p "Enter the extra parameters as shown above, separated by space  - default none: " EXTRAOPTIONS
+
+    echo "Additional parameters to JoinSingles2All: $EXTRAOPTIONS"
+        
+    JS_MAP_FILE="${OUTDIR}/06_join_singles/js_map_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".txt"
+    JS_REP_FILE="${OUTDIR}/06_join_singles/js_map_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".repartition"
+
+    zcat $FILT_FILE | java -cp $LEPMAPDIR JoinSingles2All data=- lodLimit=$JSLOD numThreads=$CPU iterate=1 sizeLimit=$SIZEL map=$MAP_FILE $EXTRAOPTIONS> $JS_MAP_FILE
 
     #evaluate chromosome repartition 
     #typically if there is just one big chromosome -> raise LOD
@@ -381,6 +402,7 @@ JoinSingles
 {
     printf "\n%s\n" "Parameters for JoinSingles2All"
     printf "%-25s %s\n" "LOD for JoinSingles2All: " $JSLOD
+    printf "%-25s %s\n" "Additional parameters:" $EXTRAOPTIONS
     printf "%-25s %s\n" "Join Singles Map: " $JS_MAP_FILE
     printf "%-25s %s\n" "JS Repartition file: " $JS_REP_FILE
 }>>$LOGFILE
@@ -388,7 +410,7 @@ JoinSingles
 function Order_markers {
     printf "\nStep 7: Run OrderMarkers2 and match_marker_map.R to ... \n"
 
-    mkdir -p "07_order_LG"
+    mkdir -p "${OUTDIR}/07_order_LG"
     #IN_FILE=$FILT_FILE
     #MAP_FILE="05_map_chr/map_"$MISS"_"$MIN_COV"_"$i"_LOD_"$LOD".txt" 
     #MAP_FILE="06_joinsingle/map.js_"$MISS"_"$MIN_COV"_"$i"_LOD_"$LOD".txt" # or use the map resulting from joinsingle 
@@ -420,7 +442,7 @@ function Order_markers {
     for j in $(seq $NB_CHR)
     do
         printf "\n* Assessing marker order for LG$j \n\n"
-        OUT_FILE="07_order_LG/order_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".LG"$j".1.txt"
+        OUT_FILE="${OUTDIR}/07_order_LG/order_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".LG"$j".1.txt"
         echo "INPUT: $FILT_FILE"
         
         zcat $FILT_FILE | java -cp $LEPMAPDIR OrderMarkers2 map=$MAP numThreads=$CPU data=- numMergeIterations=$ITE chromosome=$j $RECOMB_1 $PHASE > $OUT_FILE
@@ -429,8 +451,8 @@ function Order_markers {
         do
             IT=$[$k + 1]
             printf "\n** Assessing marker order for LG$j refining step $IT \n\n"
-            OUT_FILE="07_order_LG/order_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".LG"$j"."$IT".txt"
-            ORDER_FILE="07_order_LG/order_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".LG"$j"."$k".txt"
+            OUT_FILE="${OUTDIR}/07_order_LG/order_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".LG"$j"."$IT".txt"
+            ORDER_FILE="${OUTDIR}/07_order_LG/order_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".LG"$j"."$k".txt"
 
             zcat $FILT_FILE | java -cp $LEPMAPDIR OrderMarkers2 evaluateOrder=$ORDER_FILE numThreads=$CPU data=- numMergeIterations=$ITE chromosome=$j $RECOMB_1 $PHASE > $OUT_FILE
         done
@@ -445,23 +467,24 @@ Order_markers
         [Yy]* ) echo "JoinSingles Map used";;
         [Nn]* ) echo "Original Map file used";;
     esac
-    printf "%-25s %s\n" "Output written to: " "07_order_LG/order_*"
+    printf "%-25s %s\n" "Output written to: " "${OUTDIR}/07_order_LG/order_*"
 }>>$LOGFILE
 
 
 function match_markers_and_plot {
     printf "\nStep 8 Analyzing maps and making some plots\n"
 
-    mkdir -p "08_analyze_maps/01_maps"
-    mkdir -p "08_analyze_maps/02_plots"
-    ORDERFILES="07_order_LG/order_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".LG"
+    mkdir -p "${OUTDIR}/08_analyze_maps/01_maps"
+    mkdir -p "${OUTDIR}/08_analyze_maps/02_plots"
+    ORDERFILES="${OUTDIR}/07_order_LG/order_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".LG"
     OUTFILEBASENAME=$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL
+    OUTDIRBASE="${OUTDIR}/08_analyze_maps/"
     
     #This Rscript uses the marker list from 04_filtering to assign a contig & pos to the marker id given by lepmap, 
     #it makes the map more easily explorable, and correspondance with the genome used to align the markers
     #last step also outputs a plot with the female position which allow looking at the repartition of markers along each LG
         
-    Rscript 00_scripts/Rscripts/8_match_marker_map_fx.R $MARKERLIST_FILE $NB_CHR $REFINE_STEPS $ORDERFILES $OUTFILEBASENAME
+    Rscript 00_scripts/Rscripts/8_match_marker_map_fx.R $MARKERLIST_FILE $NB_CHR $REFINE_STEPS $ORDERFILES $OUTFILEBASENAME $OUTDIRBASE
 
 }
 match_markers_and_plot
@@ -469,18 +492,20 @@ match_markers_and_plot
 function Make_LMPlots {
 
     printf "\nMaking some nice plots to view with xdot.py - placing them in: 08_analyze_maps/03_LMPlots\n"
-    INPUT="07_order_LG/order_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".LG"
+    INPUT="${OUTDIR}/07_order_LG/order_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".LG"
     #i.e. the orderfiles from order markers
 
-    mkdir -p "08_analyze_maps/03_LMPlots"
+    mkdir -p "${OUTDIR}/08_analyze_maps/03_LMPlots"
 
     for LG in $(seq $NB_CHR)
     do
         #echo "Inputfile: 07_order_LG/"$INPUTFILENAME".LG"$LG".3.txt"
         #echo "Outputfile: 09_LMplots/"$INPUTFILENAME".LG"$LG".3.dot"
-        java -cp $LEPMAPDIR LMPlot $INPUT""$LG".3.txt" > "08_analyze_maps/03_LMPlots/"$OUTFILEBASENAME".LG"$LG".3.dot"
+        java -cp $LEPMAPDIR LMPlot $INPUT""$LG".3.txt" > "${OUTDIR}/08_analyze_maps/03_LMPlots/"${OUTFILEBASENAME}".LG"${LG}".3.dot"
     done
 }
 Make_LMPlots
+
+echo "Format for mapcomp and chromonomer - to be added to the pipeline.  Scripts are in the 00_scripts dir."
 
 echo "End of the pipe - Inspect the output files and log to see whether it ran successfully!"

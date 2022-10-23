@@ -12,6 +12,7 @@ NB_CHR <- as.numeric(argv[2])
 REFINE_STEPS <- as.numeric(argv[3])
 ORDERFILES <- argv[4]
 OUTFILEBASENAME <- argv[5]
+OUTDIRBASE <- argv[6]
 
 Nmax<-200 #nb maximum of marker above which we consider it is a plateau and remove it
 
@@ -19,7 +20,8 @@ cat("Markerlist: ", MARKERLIST,"\n")
 cat("NB_CHR: ", NB_CHR,"\n")
 cat("REFINE_STEPS: ", REFINE_STEPS,"\n")
 cat("Orderfiles: ", ORDERFILES,"\n")
-cat("Orderfilebasename", OUTFILEBASENAME,"\n\n")
+cat("Orderfilebasename:", OUTFILEBASENAME,"\n")
+cat("Output to:", OUTDIRBASE, "\n\n")
 
 
 marker_list<-read.table(MARKERLIST, stringsAsFactors=F, header=T)
@@ -53,13 +55,13 @@ for (j in 1 : NB_CHR)
   contig_map_filtered<-rbind(contig_map_filtered, order_LG_marker_filtered)
 }
 
-write.table(contig_map[2: dim(contig_map)[1],], paste0("08_analyze_maps/01_maps/contig_order_",OUTFILEBASENAME,".LGall.refined",(REFINE_STEPS + 1),".txt") , row.names=F,quote=F, sep="\t")
-write.table(contig_map_filtered[2: dim(contig_map_filtered)[1],], paste0("08_analyze_maps/01_maps/contig_order_",OUTFILEBASENAME,".LGall.refined",(REFINE_STEPS + 1),".f.txt") , row.names=F,quote=F, sep="\t")
+write.table(contig_map[2: dim(contig_map)[1],], paste0(OUTDIRBASE,"01_maps/contig_order_",OUTFILEBASENAME,".LGall.refined",(REFINE_STEPS + 1),".txt") , row.names=F,quote=F, sep="\t")
+write.table(contig_map_filtered[2: dim(contig_map_filtered)[1],], paste0(OUTDIRBASE,"01_maps/contig_order_",OUTFILEBASENAME,".LGall.refined",(REFINE_STEPS + 1),".f.txt") , row.names=F,quote=F, sep="\t")
 
-jpeg(paste0("08_analyze_maps/02_plots/contig_order_",OUTFILEBASENAME,".LGall.refined",(REFINE_STEPS + 1),".jpeg"))
+jpeg(paste0(OUTDIRBASE,"02_plots/contig_order_",OUTFILEBASENAME,".LGall.refined",(REFINE_STEPS + 1),".jpeg"))
 plot(contig_map[2:dim(contig_map)[1],4], ylab="female_pos")
 dev.off()
 	 
-jpeg(paste0("08_analyze_maps/02_plots/contig_order_",OUTFILEBASENAME,".LGall.refined",(REFINE_STEPS + 1),".f.jpeg"))
+jpeg(paste0(OUTDIRBASE,"02_plots/contig_order_",OUTFILEBASENAME,".LGall.refined",(REFINE_STEPS + 1),".f.jpeg"))
 plot(contig_map_filtered[2:dim(contig_map_filtered)[1],4], ylab="female_pos")
 dev.off()
