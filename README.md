@@ -1,4 +1,4 @@
 # LepMapWrapper
 A wrapper for LepMap3 and assorted scripts to simplify linkage analysis
 
-A work in progress
+Work in progress
