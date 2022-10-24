@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 
-printf "\nThe end of the unified pipeline script for running LepMap3 \n" 
+printf "\nGetting close to the end of the unified pipeline script for running LepMap3 \n" 
 
 ### Make sure genome path is passed as parameter
 if [ "$#" -lt 2 ]; then
@@ -37,10 +37,10 @@ CHROMODIR="${LMRUNDIR}08_analyze_maps/05_prepare_chromonomer/"
 mkdir -p $MAPCOMPDIR
 mkdir -p $CHROMODIR
 
-#this is a short pipeline in itself,
+#this is a short pipeline in itself (lifted from github: clairemerot/lepmap3_pipeline with minor modifications)
 #first use R to format the map into en entry file for the .py that extracts a sequence around a given position
 #then run the .py to extract the sequence,
-#then use R to format for mapcomp
+#then use R to format for mapcomp and chromonomer
 
 ls $INDIR | while read i
 	do 
@@ -53,10 +53,6 @@ ls $INDIR | while read i
 	#perl -pe 's/\\*//' "08_analyze_maps/04_prepare_map_comp/"$i".snplist" > "08_analyze_maps/04_prepare_map_comp/"$i".snplist" #remove stars on sex markers
 	echo "4th step - combining two map files must be run manually"   #TODO - look into this
 	
-#this is a short pipeline in itself,
-#first use R to format the map into en entry file for the .py that extracts a sequence around a given position
-#then run the .py to extract the sequence,
-#the 3rd one use R again on the original map file to format for chromocomer
 
 
 ls $INDIR | while read i

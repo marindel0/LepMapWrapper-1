@@ -33,7 +33,7 @@ my @arguments = @ARGV; #save arguments as a precaution
 
 ### The get options block
 
-my ($help, $markerlist_tsv, $catalog_fasta_gz, $discard_below);
+my ($help, $markerlist_tsv, $catalog_fasta_gz, $outpath, $discard_below);
 
 #Let's be friendly
 sub Usage {
@@ -48,6 +48,8 @@ Two input files must be provided with the correct option switches
 
 print "Optional parameters:
 
+-o/--outpath <path>\t:\tPath to write output files to (defaults to current directory)
+
 -d/--discard <N>\t:\tDiscard stacks with fewer than <N> samples in stacks database (for speedup) defaults to 10
 
 -h/--help\t\t:\tPrint this message.
@@ -56,7 +58,7 @@ print "Optional parameters:
   exit;
 }
 
-GetOptions('h|help' => \$help, 'd|discard:i' => \$discard_below, 'm|markerlist=s' => \$markerlist_tsv, 'c|catalog=s' => \$catalog_fasta_gz) or die ("Arguments in error!\n");
+GetOptions('h|help' => \$help, 'd|discard:i' => \$discard_below, 'm|markerlist=s' => \$markerlist_tsv, 'c|catalog=s' => \$catalog_fasta_gz, 'o|outpath:s' => \$outpath) or die ("Arguments in error!\n");
 Usage() if (@arguments == 0 || $help || not ($markerlist_tsv) || not ($catalog_fasta_gz));
 $discard_below = 10 if not ($discard_below); # set default to 10 if not provided
 
@@ -73,15 +75,31 @@ my %catalog_cache;
 
 (my $strippedbasename = basename($markerlist_tsv)) =~ s/\.[^.]+$//; 
 (my $outfilebasename = $strippedbasename) =~ s/^contig_order_//;
-my $workingdir=getcwd();
+#my $workingdir=getcwd();
 my $counter=0;
 my @fileheader;   #TODO make local for individual subs 
 
-### TODO Check for number of arguments passed.
 
 print "\nMarkerlist: $markerlist_tsv \n";
 print "catalog: $catalog_fasta_gz \n";
-print "Outputfile will be written to $workingdir \n";  # TODO change
+
+if (!defined($outpath)){
+    $outpath=getcwd();  
+}
+elsif (-d $outpath) {
+    print "Outputfiles will be written to $outpath\n";
+    $outpath =~ s/\/$//;    # remove trailing slash if there is one and add back later (may be uneccesary)
+}
+elsif (-e $outpath) {
+    die "$outpath is a file, not a directory";
+}
+else { 
+    die "Couldn't find directory $outpath: $!";
+} 
+
+
+
+### TODO Check for number of arguments passed.
 
 print "Output filename(s): $outfilebasename + extension \n";
 
@@ -328,14 +346,14 @@ sub write_custom_output_file {   #quick & sloppy but works first some custom for
     my @fileheader = ("CHR","marker_id","male_pos","female_pos","contig","pos","strand","pos_in_stack","catalog_defline","nr_of_samples","alternate_stacks","sequence");
     my @columnames = ('CHR','marker_id','male_pos','female_pos','contig','pos','strandpos','distance','catalog_defline','nr_of_samples','alternate_stacks','sequence'); 
     my @markers_by_line = sort_markers_by_line(%markerlist_hash);
-    write_output_files(@fileheader, @columnames, @markers_by_line, "\t", "union_$outfilebasename.tsv");
+    write_output_files(@fileheader, @columnames, @markers_by_line, "\t", "$outpath/union_$outfilebasename.tsv");
 }
 write_custom_output_file();
 
 sub write_mapcomp_file {   
     #my @columnames = ('CHR','female_pos','marker_id','sequence');  #not needed
     my @markerorder = sort_markers_by_line(%markerlist_hash);
-    my $filename ="mapcomp_$outfilebasename.csv";
+    my $filename ="$outpath/mapcomp_$outfilebasename.csv";
     unless (open (OUT, ">$filename")){
         die "Can't write to $filename $!";
     }
@@ -351,7 +369,7 @@ sub write_mapcomp_file {
 write_mapcomp_file();
 
 sub write_fasta_file {
-    my $filename = "stacks_from_$outfilebasename.fasta";
+    my $filename = "$outpath/stacks_from_$outfilebasename.fasta";
     my @markerorder = sort_markers_by_line(%markerlist_hash);
     unless (open (OUT, ">$filename")){
         die "Can't write to $filename $!";

@@ -522,6 +522,33 @@ function Make_LMPlots {
 }
 Make_LMPlots
 
-echo "Format for mapcomp and chromonomer - to be added to the pipeline.  Scripts are in the 00_scripts dir."
+function Fmt_Mpcmp_and_Chrmnmr {
+
+    function Get_genome_and_run {
+        read -e -p "Enter the path to the indexed genome.fasta file (can be bgzipped): " $GENOME
+    
+        bash 00_scripts/01_Extract_loci-format_for_mapcomp_and_chromonomer.sh $GENOME $OUTDIR
+        if [ $? eq 0 ] ; then
+            printf "This seems to have worked \n"
+            printf "Sucessfully formatted files for mapcomp and chromonomer\n">>$LOGFILE
+        else
+            printf "Something didn't work - oh well you can always run the 01_Extract.. script manually later"
+            printf "Tried to format for mapcomp and chromonomer but failed\n">>$LOGFILE
+        fi
+    }
+    
+
+    printf "\nOptional formatting for Mapcomp and Chromonomer input (up to a point)\n"
+    printf "The outputfiles can be useful even if you do not plan on using either\n"
+    printf "You will have to provide the path to the indexed fasta file which was used for alignment when SNPs were called\n"
+    printf "If snps were called \"denovo\" unsing Stacks you should skip this step.  It won't get you anywhere\n"
+    read -p "Do you want to run the script ? (y/n):" RUN
+    case $RUN in
+        [Yn]* ) Get_genome_and_run;;
+        [Nn]* ) echo "OK - skipping the step" ; print "Skipped making Mapcomp and Chromonomer files\n" >>$LOGFILE ; break;;
+        * ) echo "Please answer Yes or No.";;
+    esac
+}
+Fmt_Mpcmp_and_Chrmnmr
 
 echo "End of the pipe - Inspect the output files and log to see whether it ran successfully!"
