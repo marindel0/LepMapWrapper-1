@@ -17,11 +17,22 @@ else
     exit 1
 fi
 
-LMRUNDIR=$2   # TODO - make this more robust
+case "$2" in
+    */) LMRUNDIR=$2 ;;
+    *) LMRUNDIR="$2/" ;;
+esac
+LOGFILE=$(ls ${LMRUNDIR}*Run_*.log | tail -n1)
+
+printf "Logfile found: $LOGFILE - Looks like a Run-LM directory\n"
 
 INDIR="${LMRUNDIR}08_analyze_maps/01_maps/"
 MAPCOMPDIR="${LMRUNDIR}08_analyze_maps/04_prepare_map_comp/"
 CHROMODIR="${LMRUNDIR}08_analyze_maps/05_prepare_chromonomer/"
+
+{
+    printf "Preparing input files for mapcomp and chromonomer \n"
+    printf "Using genome assembly: ${GENOME} \n"
+}>>$LOGFILE
 
 mkdir -p $MAPCOMPDIR
 mkdir -p $CHROMODIR
@@ -52,11 +63,11 @@ ls $INDIR | while read i
 	do 
 	echo $i
 	Rscript 00_scripts/Rscripts/format_for_chromonomer_1st_step.R $i $INDIR $CHROMODIR
-	python 00_scripts/utilities/01_extract_snp_variants_with_flanking_claire_into_fasta.py $GENOME ${CHROMODIR}$i".snplist" 100 ${LMRUNDIR}$i".fasta"
+	python 00_scripts/utilities/01_extract_snp_variants_with_flanking_claire_into_fasta.py $GENOME ${CHROMODIR}$i".snplist" 100 ${CHROMODIR}$i".fasta"
 	Rscript 00_scripts/Rscripts/format_for_chromonomer_3rd_step.R $i $INDIR $CHROMODIR
 	done
 	
-	#TODO - Find logfile and append to it
+printf "\Finished preparing input files for mapcomp and chromonomer ... up to a point\n" >>$LOGFILE
 	
 	
 	

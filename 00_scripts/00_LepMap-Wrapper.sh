@@ -301,12 +301,12 @@ while true; do
     printf "\n%s\n" "It is important to find the correct Lod cutoff and number of loci required to call a LG (Sizel)"
     printf "%s\n" "You can run iterations of either while keeping the other constant to select the best combination"
     printf "%s\n\n" "I will keep asking until you answer No"
-    read -p "Do you want to optimize Lod or Sizel or Neither ? (L/S/N): " LSn
+    read -p "Do you want to optimize Lod or Sizel or Neither ? (l/s/n): " LSn
     case $LSn in
         [Ll]* ) OptimizeLod;;
         [Ss]* ) OptimizeSizel;;
         [Nn]* ) SetLOD; SetSIZEL; break;;
-        * ) echo "Please answer yes or no.";;
+        * ) echo "Please answer L(od) S(izel) or N(o).";;
     esac
 done
 
@@ -345,6 +345,7 @@ SeparateChromosomes
 }>>$LOGFILE
 
 function JoinSingles {
+
     printf "\nStep 6: Run JoinSingles2All - Merge the singles into existing linkage groups \n"
     # The script this was based on had a "while" loop to iterate over multipe families - Could add this back later.
    
@@ -353,7 +354,7 @@ function JoinSingles {
     ### Prompt for different LOD and maybe other parameters
     echo "The current Lod cutoff is $LOD. You can use a lower Lod to merge singles into linkage groups"
     echo "this makes sense if there is a large number of markers not placed into LGs"
-    read -p "Enter the Lod cutoff to use for JoinSingles2All - defaults to [$LOD]: " $JSLOD
+    read -p "Enter the Lod cutoff to use for JoinSingles2All - defaults to [$LOD]: " JSLOD
     JSLOD=${JSLOD:-$LOD}
     echo "Lod cutoff for JoinSingles2All set to $JSLOD"    
     #other parameters -- We don't need them now - Add later
@@ -386,8 +387,8 @@ ENDOFCOMMENT
     JS_MAP_FILE="${OUTDIR}/06_join_singles/js_map_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".txt"
     JS_REP_FILE="${OUTDIR}/06_join_singles/js_map_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".repartition"
 
-    zcat $FILT_FILE | java -cp $LEPMAPDIR JoinSingles2All data=- lodLimit=$JSLOD numThreads=$CPU iterate=1 sizeLimit=$SIZEL map=$MAP_FILE $EXTRAOPTIONS> $JS_MAP_FILE
-
+    zcat $FILT_FILE | java -cp $LEPMAPDIR JoinSingles2All data=- lodLimit=$JSLOD numThreads=$CPU iterate=1 sizeLimit=$SIZEL map=$MAP_FILE $EXTRAOPTIONS > $JS_MAP_FILE
+    TRY=$?
     #evaluate chromosome repartition 
     #typically if there is just one big chromosome -> raise LOD
     #if there are plenty of chromosome (more than expected -> lower LOD
@@ -396,16 +397,31 @@ ENDOFCOMMENT
     awk '{print $1}' $JS_MAP_FILE | sort -n | uniq -c > $JS_REP_FILE
     
     ### TODO add code to compare $REP_FILE and $JS_REP_FILE
-}
-JoinSingles
 
-{
-    printf "\n%s\n" "Parameters for JoinSingles2All"
-    printf "%-25s %s\n" "LOD for JoinSingles2All: " $JSLOD
-    printf "%-25s %s\n" "Additional parameters:" $EXTRAOPTIONS
-    printf "%-25s %s\n" "Join Singles Map: " $JS_MAP_FILE
-    printf "%-25s %s\n" "JS Repartition file: " $JS_REP_FILE
-}>>$LOGFILE
+    {
+        printf "\n%s\n" "Parameters for JoinSingles2All"
+        printf "%-25s %s\n" "LOD for JoinSingles2All: " $JSLOD
+        printf "%-25s %s\n" "Additional parameters:" $EXTRAOPTIONS
+        printf "%-25s %s\n" "Join Singles Map: " $JS_MAP_FILE
+        printf "%-25s %s\n" "JS Repartition file: " $JS_REP_FILE
+        if  [ ! $TRY -eq 0 ] ; then
+            printf "JoinSingles2All - Command failed - something wrong with parameters\n"
+        else 
+            printf "Success!"
+        fi
+    }>>$LOGFILE
+}
+
+TRY=1
+JoinSingles
+until [ $TRY -eq 0 ] ; do
+    read -p "Do you want to try again? (y/n):" AGAIN
+    case $AGAIN in
+        [Yn]* ) JoinSingles;;
+        [Nn]* ) echo "OK - skipping the step" ; break;;
+        * ) echo "Please answer Yes or No.";;
+    esac
+done
 
 function Order_markers {
     printf "\nStep 7: Run OrderMarkers2 and match_marker_map.R to ... \n"
