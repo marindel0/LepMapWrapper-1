@@ -5,9 +5,11 @@
 
 argv <- commandArgs(T)
 MAP1 <- argv[1]
+INDIR <-argv[2]
+CHROMODIR <-argv[3]
 
-map<-read.table(paste0("08_analyze_maps/01_maps/", MAP1), header=T, stringsAsFactors=F)
+map<-read.table(paste0(INDIR, MAP1), header=T, stringsAsFactors=F)
 map_snp_pos<-cbind(map[,c(5,6,2)], rep("N", dim(map)[1]), rep("N", dim(map)[1]))
 head (map_snp_pos)
 map_snp_pos[,2]<-gsub("\\*","",map_snp_pos[,2]) # replace the stars by nothing in the sex marker
-write.table (map_snp_pos, paste0("08_analyze_maps/05_prepare_chromonomer/",MAP1,".snplist"), col.names=F, row.names=F, quote=F, sep="\t")
+write.table (map_snp_pos, paste0(CHROMODIR,MAP1,".snplist"), col.names=F, row.names=F, quote=F, sep="\t")
