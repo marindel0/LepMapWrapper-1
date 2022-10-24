@@ -348,9 +348,9 @@ function JoinSingles {
 
     printf "\nStep 6: Run JoinSingles2All - Merge the singles into existing linkage groups \n"
     # The script this was based on had a "while" loop to iterate over multipe families - Could add this back later.
-   
+
     mkdir -p "${OUTDIR}/06_join_singles"
-    
+
     ### Prompt for different LOD and maybe other parameters
     echo "The current Lod cutoff is $LOD. You can use a lower Lod to merge singles into linkage groups"
     echo "this makes sense if there is a large number of markers not placed into LGs"
@@ -380,10 +380,12 @@ Additional options:
          mask=map_file2     Filter out markers not (in group) 1 in the map_file2
 
 ENDOFCOMMENT
-    read -p "Enter the extra parameters as shown above, separated by space  - default none: " EXTRAOPTIONS
+    read -p "Enter the extra parameters as shown above, separated by space  - default none: "
+    EXTRAOPTIONS=$REPLY
+
 
     echo "Additional parameters to JoinSingles2All: $EXTRAOPTIONS"
-        
+
     JS_MAP_FILE="${OUTDIR}/06_join_singles/js_map_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".txt"
     JS_REP_FILE="${OUTDIR}/06_join_singles/js_map_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".repartition"
 
@@ -392,10 +394,10 @@ ENDOFCOMMENT
     #evaluate chromosome repartition 
     #typically if there is just one big chromosome -> raise LOD
     #if there are plenty of chromosome (more than expected -> lower LOD
-    #if there are X big chromosome and plenty of chromosome with very few markers, raise SizeLimit and then rather use joinsingle with smalle LOD
+    #if there are X big chromosome and plenty of chromosome with very few markers, raise SizeLimit and then rather use joinsingle with smaller LOD
     awk '{print $1}' $JS_MAP_FILE | sort -n | uniq -c 
     awk '{print $1}' $JS_MAP_FILE | sort -n | uniq -c > $JS_REP_FILE
-    
+
     ### TODO add code to compare $REP_FILE and $JS_REP_FILE
 
     {
@@ -406,7 +408,7 @@ ENDOFCOMMENT
         printf "%-25s %s\n" "JS Repartition file: " $JS_REP_FILE
         if  [ ! $TRY -eq 0 ] ; then
             printf "JoinSingles2All - Command failed - something wrong with parameters\n"
-        else 
+        else
             printf "Success!"
         fi
     }>>$LOGFILE
@@ -431,18 +433,18 @@ function Order_markers {
     #MAP_FILE="05_map_chr/map_"$MISS"_"$MIN_COV"_"$i"_LOD_"$LOD".txt" 
     #MAP_FILE="06_joinsingle/map.js_"$MISS"_"$MIN_COV"_"$i"_LOD_"$LOD".txt" # or use the map resulting from joinsingle 
     while true; do
-    read -p "Use JoinSingles map file? (if not, the original map will be used) " yn
-    case $yn in
-        [Yy]* ) MAP=$JS_MAP_FILE; REP=$JS_REP_FILE; break;;
-        [Nn]* ) MAP=$MAP_FILE; REP=$REP_FILE; break;;
-        * ) echo "Please answer yes or no.";;
-    esac
+        read -p "Use JoinSingles map file? (if not, the original map will be used) " yn
+        case $yn in
+            [Yy]* ) MAP=$JS_MAP_FILE; REP=$JS_REP_FILE; break;;
+            [Nn]* ) MAP=$MAP_FILE; REP=$REP_FILE; break;;
+            * ) echo "Please answer yes or no.";;
+        esac
     done
-    
+
     # NB_CHR=$[$(wc -l $REP | cut -d " " -f 1)-2]  ##No good on MacOS
     NB_CHR=$(tail -1 $REP | awk '{print $2}')  #number of linkage groups from step 5
     printf "\nNumber of Chromosomes: $NB_CHR\n"
-    
+
     #other parameters (adjust if needed)
     read -p "How many iterations shall we use for merging? - default [5]: " ITE
     ITE=${ITE:-5}
@@ -450,17 +452,17 @@ function Order_markers {
     read -p "How many Refine steps shall we use? - default [2]: " REFINE_STEPS
     REFINE_STEPS=${REFINE_STEPS:-2}
     echo "Refine steps=$REFINE_STEPS"
-    
+
     #RECOMB_1="recombination1=0" # for species with non-recoùmbining male adjust recombination rate to 0
     #PHASE="outputPhasedData=1" #if we want phased data as output. may be useful for QTL?
-    
+
     #run the module once for intitial order
     for j in $(seq $NB_CHR)
     do
         printf "\n* Assessing marker order for LG$j \n\n"
         OUT_FILE="${OUTDIR}/07_order_LG/order_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".LG"$j".1.txt"
         echo "INPUT: $FILT_FILE"
-        
+
         zcat $FILT_FILE | java -cp $LEPMAPDIR OrderMarkers2 map=$MAP numThreads=$CPU data=- numMergeIterations=$ITE chromosome=$j $RECOMB_1 $PHASE > $OUT_FILE
 
         for k in $(seq $REFINE_STEPS)
@@ -488,18 +490,18 @@ Order_markers
 
 
 function match_markers_and_plot {
-    printf "\nStep 8 Analyzing maps and making some plots\n"
+    printf "\nStep 8: Analyzing maps and making some plots\n"
 
     mkdir -p "${OUTDIR}/08_analyze_maps/01_maps"
     mkdir -p "${OUTDIR}/08_analyze_maps/02_plots"
     ORDERFILES="${OUTDIR}/07_order_LG/order_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".LG"
     OUTFILEBASENAME=$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL
     OUTDIRBASE="${OUTDIR}/08_analyze_maps/"
-    
-    #This Rscript uses the marker list from 04_filtering to assign a contig & pos to the marker id given by lepmap, 
+
+    #This Rscript uses the marker list from 04_filtering to assign a contig & pos to the marker id given by lepmap,
     #it makes the map more easily explorable, and correspondance with the genome used to align the markers
     #last step also outputs a plot with the female position which allow looking at the repartition of markers along each LG
-        
+
     Rscript 00_scripts/Rscripts/8_match_marker_map_fx.R $MARKERLIST_FILE $NB_CHR $REFINE_STEPS $ORDERFILES $OUTFILEBASENAME $OUTDIRBASE
 
 }
@@ -525,29 +527,35 @@ Make_LMPlots
 function Fmt_Mpcmp_and_Chrmnmr {
 
     function Get_genome_and_run {
-        read -e -p "Enter the path to the indexed genome.fasta file (can be bgzipped): " $GENOME
-    
-        bash 00_scripts/01_Extract_loci-format_for_mapcomp_and_chromonomer.sh $GENOME $OUTDIR
-        if [ $? eq 0 ] ; then
+        read -e -p "Enter the path to the indexed genome.fasta file (can be bgzipped): " GENOME
+
+        printf "command:  bash ./00_scripts/01_Extract_loci-format_for_mapcomp_and_chromonomer.sh $GENOME $OUTDIR\n"
+        bash ./00_scripts/01_Extract_loci-format_for_mapcomp_and_chromonomer.sh $GENOME $OUTDIR
+        
+        if [[ $? = 0 ]] ; then
+            DONE=1
             printf "This seems to have worked \n"
-            printf "Sucessfully formatted files for mapcomp and chromonomer\n">>$LOGFILE
+            printf "Sucessfully formatted files for mapcomp and chromonomer.\n">>$LOGFILE
         else
-            printf "Something didn't work - oh well you can always run the 01_Extract.. script manually later"
-            printf "Tried to format for mapcomp and chromonomer but failed\n">>$LOGFILE
+            printf "Something didn't work. Run script again or run it later on it's own.\n\n"
+            printf "Tried to format for mapcomp and chromonomer but failed.\n">>$LOGFILE
+            AG="again "
         fi
     }
-    
 
-    printf "\nOptional formatting for Mapcomp and Chromonomer input (up to a point)\n"
-    printf "The outputfiles can be useful even if you do not plan on using either\n"
-    printf "You will have to provide the path to the indexed fasta file which was used for alignment when SNPs were called\n"
+    printf "\nStep 9: Optional formatting for Mapcomp and Chromonomer input (up to a point).\n\n"
+    printf "The outputfiles can be useful even if you do not plan on using either.  You will have to provide\n"
+    printf "the path to the indexed fasta file which was used for alignment when SNPs were called\n"
     printf "If snps were called \"denovo\" unsing Stacks you should skip this step.  It won't get you anywhere\n"
-    read -p "Do you want to run the script ? (y/n):" RUN
-    case $RUN in
-        [Yn]* ) Get_genome_and_run;;
-        [Nn]* ) echo "OK - skipping the step" ; print "Skipped making Mapcomp and Chromonomer files\n" >>$LOGFILE ; break;;
-        * ) echo "Please answer Yes or No.";;
-    esac
+
+    while true; do
+        read -p "Do you want to run the script ${AG}? (y/n): " RUNIT
+        case $RUNIT in
+            [Yy]* ) echo "Yes!"; Get_genome_and_run ; if [[ $DONE = 1 ]]; then break ; fi ;;
+            [Nn]* ) echo "OK - skipping the step" ; printf "Skipped making Mapcomp and Chromonomer files\n" ; break;;
+            * ) echo "Please answer Yes or No.";;
+        esac
+    done
 }
 Fmt_Mpcmp_and_Chrmnmr
 
