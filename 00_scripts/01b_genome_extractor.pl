@@ -10,9 +10,11 @@ use Cwd qw(getcwd);
 
 #########################################################################################################
 #
-# This little script parses the gzipped catalog files from stacks and markerlist output files from
-# LepMap3 and appends the DNA sequence of the stacks locus to the markerlist file
-# Output format: list as for prepare for chromonomer
+# This little script parses the markerlist output files from LepMap3 given the genome used to 
+# call the SNPs and retrieves 250 bp of surrounding sequence
+# Meant to replace the R and .py scripts in 01_Extract_loci
+#
+# Output formats: various types of lists ... For example
 # 
 # No header
 # Species: <string>
@@ -33,7 +35,7 @@ my @arguments = @ARGV; #save arguments as a precaution
 
 ### The get options block
 
-my ($help, $markerlist_tsv, $catalog_fasta_gz, $outpath, $discard_below);
+my ($help, $markerlist_tsv, $genome_fasta, $outpath, $discard_below);
 
 #Let's be friendly
 sub Usage {
@@ -58,20 +60,20 @@ print "Optional parameters:
   exit;
 }
 
-GetOptions('h|help' => \$help, 'd|discard:i' => \$discard_below, 'm|markerlist=s' => \$markerlist_tsv, 'c|catalog=s' => \$catalog_fasta_gz, 'o|outpath:s' => \$outpath) or die ("Arguments in error!\n");
-Usage() if (@arguments == 0 || $help || not ($markerlist_tsv) || not ($catalog_fasta_gz));
+GetOptions('h|help' => \$help, 'd|discard:i' => \$discard_below, 'm|markerlist=s' => \$markerlist_tsv, 'c|catalog=s' => \$genome_fasta, 'o|outpath:s' => \$outpath) or die ("Arguments in error!\n");
+Usage() if (@arguments == 0 || $help || not ($markerlist_tsv) || not ($genome_fasta));
 $discard_below = 10 if not ($discard_below); # set default to 10 if not provided
 
 # TODO provide option to enter outfilename and select various types of output files
 
-#(print $markerlist_tsv . " " . $catalog_fasta_gz) or Usage();
+#(print $markerlist_tsv . " " . $genome_fasta) or Usage();
 ### Set global variables
 my %markerlist_hash;  
 my %catalog_hash;     
 my %catalog_cache; 
 
 #my $markerlist_tsv = shift(@arguments) or die "no markerfile $1";
-#my $catalog_fasta_gz = shift(@arguments)or die "no catalog file $1"; 
+#my $genome_fasta = shift(@arguments)or die "no catalog file $1"; 
 
 (my $strippedbasename = basename($markerlist_tsv)) =~ s/\.[^.]+$//; 
 (my $outfilebasename = $strippedbasename) =~ s/^contig_order_//;
@@ -81,7 +83,7 @@ my @fileheader;   #TODO make local for individual subs
 
 
 print "\nMarkerlist: $markerlist_tsv \n";
-print "catalog: $catalog_fasta_gz \n";
+print "Genome: $genome_fasta \n";
 
 if (!defined($outpath)){
     $outpath=getcwd();  
@@ -166,11 +168,32 @@ sub parse_markerlist_file($){
        next;
                        
    }                   
-   close MARKERLISTFILE 
-}                     
+   close MARKERLISTFILE ;
+}
 
 parse_markerlist_file($markerlist_tsv);
-#print Dumper(\%markerlist_hash); 
+
+sub add_sequences {
+    foreach my $markerlist_key (keys %markerlist_hash) {
+        my $contig = $markerlist_hash{$marker}{'contig'};
+        my $from = ($markerlist_hash{$marker}{'pos'} - 125);
+        my $to = ($markerlist_hash{$marker}{'pos'} + 125)
+        my @command = ("samtoos faidx", $genome_fasta, "$contig".":"."$from"."-"."$to", " |" );
+        open(INPIPE, system(@command) ) or die "can't do it";
+        while( my $line = <INPIPE> ){
+            chomp $line;
+            if ( $line =~ /^(>.*)$/ ){
+               $markerlist_hash{$marker}{'fasta_defline'} = $1;
+            }
+            elsif ( $line !~ /^\s*$/ ){
+               $markerlist_hash{$marker}{'sequence'} .= $line;
+            }
+        }
+    }
+}
+add_sequences();
+
+print Dumper(\%markerlist_hash); 
 
    # The stacks catalog files are in a simple Fasta format (gzipped)
    # Two types of alternating lines:
@@ -178,124 +201,124 @@ parse_markerlist_file($markerlist_tsv);
    # Sequence follows until the next defline
    # The defline of each sequence contains the position of RAD-tag is in the reference genome (e.g. pos=CM008043.1:9352:-) and the number of samples the RAD-tag was found (e.g. NS=1).
 
-sub read_fasta_file {
-
-    my $marker_ID='';
-    my $stack_counter=0;
-    my $discard_counter=0;
-    
-    if ($catalog_fasta_gz =~ /.gz$/) {
-        open(INPIPE, "zcat $catalog_fasta_gz |") || die "can’t open pipe to $catalog_fasta_gz"; #or gunzip -c
-    }
-    else {
-        open(INPIPE, $catalog_fasta_gz) || die "can’t open $catalog_fasta_gz";
-    }
-    
-    print "\n* Please be patient. Reading the catalog takes a while *\n\n";
-    
-    my $discard=0;
-    NEXTLINE: while( my $line = <INPIPE> ){
-        chomp $line;
-
-        if ( $line =~ /^(>.*)$/ ){
-            my $defline = $1;
-            $stack_counter++;
-            $discard=0;
-            $defline =~ m/^>(\d+)\spos=(\S+)\sNS=(\d+)$/;
-            my ($stacks_no, $chr_pos, $nr_of_samples) = ($1, $2, $3);
-            #print "Stacks_no: $stacks_no, Chr:pos:strand $chr_pos, Number of Stacks hits: $nr_of_samples \n";
-            if ($nr_of_samples < $discard_below) {
-                $discard_counter++;
-                $discard=1;  #discard until next match
-                next NEXTLINE ;
-            }
-            my ($CHROM, $POS, $strand) = split (':', $chr_pos);
-            #print "Chromosome: $CHROM - Position: $POS - Strand: $strand\n";
-            $marker_ID = join ('_', $CHROM, $POS);
-            $catalog_hash{$marker_ID}{'contig'} = $CHROM;
-            $catalog_hash{$marker_ID}{'pos'} = $POS;
-            $catalog_hash{$marker_ID}{'defline'} = $defline;
-            $catalog_hash{$marker_ID}{'catalog_ID'} = $stacks_no;
-            $catalog_hash{$marker_ID}{'strandpos'} = $strand;
-            $catalog_hash{$marker_ID}{'nr_of_samples'} = $nr_of_samples;  #number of samples hitting catalog (useful for calculating missingless)
-        }
-        elsif ( $line !~ /^\s*$/ and not $discard ){
-           $catalog_hash{$marker_ID}{'sequence'} .= $line;
-        }
-    }
-    close(INPIPE);
-    print "Done reading fasta file \n";
-    print "Discarded $discard_counter out of $stack_counter stacks in catalog file.\n";
-}
-read_fasta_file();  #No need to be fancy and pass reference to catalog_hash (maybe later if this script grows)
-
-
-sub sequences_2_markerlisthash {  #this is the brute force approach - optimize later by breaking up into LG's
-
-    print "Start cross referencing catalogs and markerlist\n";
-    
-    foreach my $stack_key ( keys %catalog_hash ) {
-        my $stack_contig = $catalog_hash{$stack_key}{'contig'};
-        my $stack_pos = $catalog_hash{$stack_key}{'pos'};
-
-        foreach my $markerlist_key (keys %markerlist_hash) {     #move comparison here - save some time
-            my $markerlist_contig = $markerlist_hash{$markerlist_key}{'contig'};            
-            my $marker_hits=0;
-
-            if ($markerlist_contig eq $stack_contig) {            #if marker and stack are on the same contig - keep looking (this is slow and can be optimized)
-            
-                my $marker_pos = $markerlist_hash{$markerlist_key}{'pos'};
-                my $distance = ($marker_pos - $stack_pos);           
-                my $stack_length = length($catalog_hash{$stack_key}{'sequence'});
-                if ( abs($distance) < $stack_length ) {
-                    $catalog_cache{$markerlist_key}{$stack_key} = $distance;
-                }
-            }
-        }
-    }
-}    
-
-
-sub resolve_conflicts { 
-    print "\nResolving conflicts \n";
-    # resolve conflicts and transfer data to markerlist_hash
-    my ($misses, $matches, $close_encounters) = 0;
-    
-    foreach my $markerlist_key (keys %markerlist_hash) {      #iterate through markerlist hash 
-
-        if (not keys (%{$catalog_cache{$markerlist_key}}) ) {                                          # if no entry in catalog cache then there is no info
-            $misses++;
-            $markerlist_hash{$markerlist_key}{'catalog_defline'} = "NA";
-            $markerlist_hash{$markerlist_key}{'sequence'} = "NA";
-            $markerlist_hash{$markerlist_key}{'catalog_ID'} = "NA";
-            $markerlist_hash{$markerlist_key}{'strandpos'} = "NA";
-            $markerlist_hash{$markerlist_key}{'nr_of_samples'} = "NA";
-            $markerlist_hash{$markerlist_key}{'distance'} = "NA";
-            $markerlist_hash{$markerlist_key}{'alternate_stacks'} = "NA";
-        }
-        else {                                                              # if there is a hit we have to select the best one
-            $matches++;
-            my @stack_keys = keys (%{$catalog_cache{$markerlist_key}}) ;    # all the keys in the inner hash           
-            if ((@stack_keys) > 1 ){                                        # if there is more than one stack we select the one starting closest to the marker
-                my @sorted_keys;
-                foreach my $k (sort { abs($catalog_cache{$markerlist_key}{$a}) <=> abs($catalog_cache{$markerlist_key}{$b}) } @stack_keys) {
-                    push(@sorted_keys, $k);
-                }
-                @stack_keys = @sorted_keys;                                 # return the sorted keys to the @stack_keys array
-            }
-            my $stack_key = shift(@stack_keys);   # first key contains the closest hit
-            $close_encounters += @stack_keys;     # the rest are close encounters                
-            $markerlist_hash{$markerlist_key}{'catalog_defline'} = $catalog_hash{$stack_key}{'defline'};
-            $markerlist_hash{$markerlist_key}{'sequence'} = $catalog_hash{$stack_key}{'sequence'} ;
-            $markerlist_hash{$markerlist_key}{'catalog_ID'} = $catalog_hash{$stack_key}{'catalog_ID'};
-            $markerlist_hash{$markerlist_key}{'strandpos'} = $catalog_hash{$stack_key}{'strandpos'};
-            $markerlist_hash{$markerlist_key}{'nr_of_samples'} = $catalog_hash{$stack_key}{'nr_of_samples'};
-            $markerlist_hash{$markerlist_key}{'distance'} = $catalog_cache{$markerlist_key}{$stack_key};   
-            $markerlist_hash{$markerlist_key}{'alternate_stacks'} = (join(", ", @stack_keys) or "");   # what remains in @stack_keys are alternate stacks
-        }
-    }
-    return ($matches, $close_encounters, $misses);    
-}
+# sub read_fasta_file {
+# 
+#     my $marker_ID='';
+#     my $stack_counter=0;
+#     my $discard_counter=0;
+#     
+#     if ($genome_fasta =~ /.gz$/) {
+#         open(INPIPE, "zcat $genome_fasta |") || die "can’t open pipe to $genome_fasta"; #or gunzip -c
+#     }
+#     else {
+#         open(INPIPE, $genome_fasta) || die "can’t open $genome_fasta";
+#     }
+#     
+#     print "\n* Please be patient. Reading the catalog takes a while *\n\n";
+#     
+#     my $discard=0;
+#     NEXTLINE: while( my $line = <INPIPE> ){
+#         chomp $line;
+# 
+#         if ( $line =~ /^(>.*)$/ ){
+#             my $defline = $1;
+#             $stack_counter++;
+#             $discard=0;
+#             $defline =~ m/^>(\d+)\spos=(\S+)\sNS=(\d+)$/;
+#             my ($stacks_no, $chr_pos, $nr_of_samples) = ($1, $2, $3);
+#             print "Stacks_no: $stacks_no, Chr:pos:strand $chr_pos, Number of Stacks hits: $nr_of_samples \n";
+#             if ($nr_of_samples < $discard_below) {
+#                 $discard_counter++;
+#                 $discard=1;  #discard until next match
+#                 next NEXTLINE ;
+#             }
+#             my ($CHROM, $POS, $strand) = split (':', $chr_pos);
+#             print "Chromosome: $CHROM - Position: $POS - Strand: $strand\n";
+#             $marker_ID = join ('_', $CHROM, $POS);
+#             $catalog_hash{$marker_ID}{'contig'} = $CHROM;
+#             $catalog_hash{$marker_ID}{'pos'} = $POS;
+#             $catalog_hash{$marker_ID}{'defline'} = $defline;
+#             $catalog_hash{$marker_ID}{'catalog_ID'} = $stacks_no;
+#             $catalog_hash{$marker_ID}{'strandpos'} = $strand;
+#             $catalog_hash{$marker_ID}{'nr_of_samples'} = $nr_of_samples;  #number of samples hitting catalog (useful for calculating missingless)
+#         }
+#         elsif ( $line !~ /^\s*$/ and not $discard ){
+#            $catalog_hash{$marker_ID}{'sequence'} .= $line;
+#         }
+#     }
+#     close(INPIPE);
+#     print "Done reading fasta file \n";
+#     print "Discarded $discard_counter out of $stack_counter stacks in catalog file.\n";
+# }
+# read_fasta_file();  #No need to be fancy and pass reference to catalog_hash (maybe later if this script grows)
+# 
+# 
+# sub sequences_2_markerlisthash {  #this is the brute force approach - optimize later by breaking up into LG's
+# 
+#     print "Start cross referencing catalogs and markerlist\n";
+#     
+#     foreach my $stack_key ( keys %catalog_hash ) {
+#         my $stack_contig = $catalog_hash{$stack_key}{'contig'};
+#         my $stack_pos = $catalog_hash{$stack_key}{'pos'};
+# 
+#         foreach my $markerlist_key (keys %markerlist_hash) {     #move comparison here - save some time
+#             my $markerlist_contig = $markerlist_hash{$markerlist_key}{'contig'};            
+#             my $marker_hits=0;
+# 
+#             if ($markerlist_contig eq $stack_contig) {            #if marker and stack are on the same contig - keep looking (this is slow and can be optimized)
+#             
+#                 my $marker_pos = $markerlist_hash{$markerlist_key}{'pos'};
+#                 my $distance = ($marker_pos - $stack_pos);           
+#                 my $stack_length = length($catalog_hash{$stack_key}{'sequence'});
+#                 if ( abs($distance) < $stack_length ) {
+#                     $catalog_cache{$markerlist_key}{$stack_key} = $distance;
+#                 }
+#             }
+#         }
+#     }
+# }    
+# 
+# 
+# sub resolve_conflicts { 
+#     print "\nResolving conflicts \n";
+#     resolve conflicts and transfer data to markerlist_hash
+#     my ($misses, $matches, $close_encounters) = 0;
+#     
+#     foreach my $markerlist_key (keys %markerlist_hash) {      #iterate through markerlist hash 
+# 
+#         if (not keys (%{$catalog_cache{$markerlist_key}}) ) {                                          # if no entry in catalog cache then there is no info
+#             $misses++;
+#             $markerlist_hash{$markerlist_key}{'catalog_defline'} = "NA";
+#             $markerlist_hash{$markerlist_key}{'sequence'} = "NA";
+#             $markerlist_hash{$markerlist_key}{'catalog_ID'} = "NA";
+#             $markerlist_hash{$markerlist_key}{'strandpos'} = "NA";
+#             $markerlist_hash{$markerlist_key}{'nr_of_samples'} = "NA";
+#             $markerlist_hash{$markerlist_key}{'distance'} = "NA";
+#             $markerlist_hash{$markerlist_key}{'alternate_stacks'} = "NA";
+#         }
+#         else {                                                              # if there is a hit we have to select the best one
+#             $matches++;
+#             my @stack_keys = keys (%{$catalog_cache{$markerlist_key}}) ;    # all the keys in the inner hash           
+#             if ((@stack_keys) > 1 ){                                        # if there is more than one stack we select the one starting closest to the marker
+#                 my @sorted_keys;
+#                 foreach my $k (sort { abs($catalog_cache{$markerlist_key}{$a}) <=> abs($catalog_cache{$markerlist_key}{$b}) } @stack_keys) {
+#                     push(@sorted_keys, $k);
+#                 }
+#                 @stack_keys = @sorted_keys;                                 # return the sorted keys to the @stack_keys array
+#             }
+#             my $stack_key = shift(@stack_keys);   # first key contains the closest hit
+#             $close_encounters += @stack_keys;     # the rest are close encounters                
+#             $markerlist_hash{$markerlist_key}{'catalog_defline'} = $catalog_hash{$stack_key}{'defline'};
+#             $markerlist_hash{$markerlist_key}{'sequence'} = $catalog_hash{$stack_key}{'sequence'} ;
+#             $markerlist_hash{$markerlist_key}{'catalog_ID'} = $catalog_hash{$stack_key}{'catalog_ID'};
+#             $markerlist_hash{$markerlist_key}{'strandpos'} = $catalog_hash{$stack_key}{'strandpos'};
+#             $markerlist_hash{$markerlist_key}{'nr_of_samples'} = $catalog_hash{$stack_key}{'nr_of_samples'};
+#             $markerlist_hash{$markerlist_key}{'distance'} = $catalog_cache{$markerlist_key}{$stack_key};   
+#             $markerlist_hash{$markerlist_key}{'alternate_stacks'} = (join(", ", @stack_keys) or "");   # what remains in @stack_keys are alternate stacks
+#         }
+#     }
+#     return ($matches, $close_encounters, $misses);    
+# }
 
 sequences_2_markerlisthash();
 my @success = resolve_conflicts();
