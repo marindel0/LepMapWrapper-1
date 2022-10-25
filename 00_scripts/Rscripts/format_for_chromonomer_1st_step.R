@@ -1,7 +1,6 @@
-#this R script use the map with contig pos info to output a file with 5 columns tab-sep
+#this R script uses the map with contig pos info to output a file with 5 columns tab-sep
 #CHR(contig) position marker_id N N
 #this is the entry file for the .py that extracts 200 bp around the snp pos.
-
 
 argv <- commandArgs(T)
 MAP1 <- argv[1]

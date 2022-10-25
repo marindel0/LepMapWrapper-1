@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 
-printf "\nGetting close to the end of the unified pipeline script for running LepMap3 \n" 
+printf "\nRunning an assembly of R and python scripts to make some potentially useful files \n" 
 
 ### Make sure genome path is passed as parameter
 if [ "$#" -lt 2 ]; then
@@ -41,6 +41,9 @@ mkdir -p $CHROMODIR
 #first use R to format the map into en entry file for the .py that extracts a sequence around a given position
 #then run the .py to extract the sequence,
 #then use R to format for mapcomp and chromonomer
+
+### TODO This could be done much more quickly and easily with samtoos faidx [genome.fa] [chromosome:from-to]
+### and a bit of perl, but it works so leave it for now.
 
 ls $INDIR | while read i
 	do 

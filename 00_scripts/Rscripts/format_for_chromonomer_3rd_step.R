@@ -1,6 +1,6 @@
-#this R script use the file from the map (LG female pos)
+#this R script uses the file from the map (LG female pos)
 #it outputs the file formatted for chromonomer in .tsv tab-delimited file with 3 columns
-# LG, marker_id, female_pos
+#LG, marker_id, female_pos
 
 argv <- commandArgs(T)
 MAP1 <- argv[1]

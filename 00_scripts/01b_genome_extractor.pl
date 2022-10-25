@@ -60,7 +60,6 @@ print "Optional parameters:
 
 GetOptions('h|help' => \$help, 'd|discard:i' => \$discard_below, 'm|markerlist=s' => \$markerlist_tsv, 'c|catalog=s' => \$catalog_fasta_gz, 'o|outpath:s' => \$outpath) or die ("Arguments in error!\n");
 Usage() if (@arguments == 0 || $help || not ($markerlist_tsv) || not ($catalog_fasta_gz));
-
 $discard_below = 10 if not ($discard_below); # set default to 10 if not provided
 
 # TODO provide option to enter outfilename and select various types of output files
@@ -167,7 +166,7 @@ sub parse_markerlist_file($){
        next;
                        
    }                   
-   close MARKERLISTFILE ;
+   close MARKERLISTFILE 
 }                     
 
 parse_markerlist_file($markerlist_tsv);
