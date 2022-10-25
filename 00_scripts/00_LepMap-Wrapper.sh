@@ -383,7 +383,6 @@ ENDOFCOMMENT
     read -p "Enter the extra parameters as shown above, separated by space  - default none: "
     EXTRAOPTIONS=$REPLY
 
-
     echo "Additional parameters to JoinSingles2All: $EXTRAOPTIONS"
 
     JS_MAP_FILE="${OUTDIR}/06_join_singles/js_map_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".txt"
@@ -467,7 +466,7 @@ function Order_markers {
 
         for k in $(seq $REFINE_STEPS)
         do
-            IT=$[$k + 1]
+            IT=$[$k + 1]                           #Everything is global in bash so we can use this later in LMplots sub
             printf "\n** Assessing marker order for LG$j refining step $IT \n\n"
             OUT_FILE="${OUTDIR}/07_order_LG/order_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".LG"$j"."$IT".txt"
             ORDER_FILE="${OUTDIR}/07_order_LG/order_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_JSLod-"$JSLOD"_Sizel-"$SIZEL".LG"$j"."$k".txt"
@@ -519,7 +518,7 @@ function Make_LMPlots {
     do
         #echo "Inputfile: 07_order_LG/"$INPUTFILENAME".LG"$LG".3.txt"
         #echo "Outputfile: 09_LMplots/"$INPUTFILENAME".LG"$LG".3.dot"
-        java -cp $LEPMAPDIR LMPlot $INPUT""$LG".3.txt" > "${OUTDIR}/08_analyze_maps/03_LMPlots/"${OUTFILEBASENAME}".LG"${LG}".3.dot"
+        java -cp $LEPMAPDIR LMPlot $INPUT""$LG".$IT.txt" > "${OUTDIR}/08_analyze_maps/03_LMPlots/"${OUTFILEBASENAME}".LG"${LG}".$IT.dot"  #IT is the highest iteration 
     done
 }
 Make_LMPlots
@@ -543,10 +542,11 @@ function Fmt_Mpcmp_and_Chrmnmr {
         fi
     }
 
-    printf "\nStep 9: Optional formatting for Mapcomp and Chromonomer input (up to a point).\n\n"
+    printf "\nOLD STYLE: Optional formatting for Mapcomp and Chromonomer input (up to a point).\n\n"
     printf "The outputfiles can be useful even if you do not plan on using either.  You will have to provide\n"
     printf "the path to the indexed fasta file which was used for alignment when SNPs were called\n"
     printf "If snps were called \"denovo\" unsing Stacks you should skip this step.  It won't get you anywhere\n"
+    printf "\nOutput will be written subdirectories of 08_analyze_maps/ (old style)\n"
 
     while true; do
         read -p "Do you want to run the script ${AG}? (y/n): " RUNIT
@@ -557,6 +557,125 @@ function Fmt_Mpcmp_and_Chrmnmr {
         esac
     done
 }
-Fmt_Mpcmp_and_Chrmnmr
+
+function samtools_genome_extractor {
+
+    MAPDIR="${OUTDIR}/08_analyze_maps/01_maps/"
+    SEQOUTDIR="${OUTDIR}/09_extracted_genome_seqs/"
+    mkdir -p $SEQOUTDIR
+    
+    printf "\nReading inputfiles from:\t$MAPDIR\n"
+    printf "Writing output files to:\t$SEQOUTDIR\n"
+    
+    printf "\nSamtools should be installed or this will not work.\n\n"
+    printf "You must provide the path to the indexed fasta file which was used for alignment to call SNPs\n"
+    while true; do
+        read -e -p "Enter the path to the indexed genome.fasta file (can be bgzipped): " GENOME
+        if [ -f "$GENOME" ]; then
+            printf "\n$GENOME file found.\n"
+            break
+        else 
+            echo "file $GENOME does not exist. Please try again!"
+            read -p "Do you want to try again or quit ? (y/q): " RUNIT
+            case $RUNIT in
+                [Yy]* ) echo "Yes!";;
+                [Qq]* ) echo "OK - giving up" ; printf "Skipped making Mapcomp and Chromonomer files\n" ; exit 1;;
+                * ) echo "Please answer Yes or Quit.";;
+            esac
+        fi
+    done
+    
+    ls $MAPDIR | while read i
+    do 
+         echo "Infile: $i"
+         printf "command: perl ../LepMapWrapper/00_scripts/01b_genome_extractor.pl -m ${MAPDIR}${i} -g $GENOME -o $SEQOUTDIR\n"
+         printf "\n"
+         (perl ./00_scripts/01b_genome_extractor.pl -m ${MAPDIR}${i} -g $GENOME -o $SEQOUTDIR </dev/tty)
+         echo "returned from perl"
+    done
+}
+
+function catalog_extractor {
+
+    MAPDIR="${OUTDIR}/08_analyze_maps/01_maps/"
+    SEQOUTDIR="${OUTDIR}/09_extracted_genome_seqs/"
+    mkdir -p $SEQOUTDIR
+    
+    while true; do
+        read -e -p "Enter the path to the stacks catalog.fasta.gz file : " CATALOG
+        if [ -f "$CATALOG" ]; then
+            printf "\n$CATALOG file found.\n"
+            break
+        else 
+            echo "file $CATALOG does not exist. Please try again!"
+            read -p "Do you want to try again or quit ? (y/q): " RUNIT
+            case $RUNIT in
+                [Yy]* ) echo "Yes!";;
+                [Qq]* ) echo "OK - giving up" ; printf "Skipped making Mapcomp and Chromonomer files\n" ; exit 1;;
+                * ) echo "Please answer Yes or Quit.";;
+            esac
+        fi
+    done
+    
+    printf "\nDiscarding low coverage stacks from the catalog will seriously speed up things.\n"
+    printf "A samplenumber close to the number of individuals in family is recommended."
+    read -p "Enter minimal samplenumber threshold - default [100]: " DISCARD
+    DISCARD=${DISCARD:-100}
+    
+    ls $MAPDIR | while read i
+    do 
+         echo "Infile: $i"
+         printf "command:  perl ./00_scripts/01b_genome_extractor.pl -d $DISCARD -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR \n"
+         (perl ./00_scripts/02_catalog_extractor.pl -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR -d $DISCARD </dev/tty)
+         echo "return from perl"
+    done
+}
+
+function Ask_old_or_new {
+    while true; do
+        printf "\n%s\n\n" "OK, there are two ways to go now, using a genome:"
+        printf "%s\n" "  1) Use python and R scripts from 'clairemerot' - (old style)"
+        printf "%s\n\n" "  2) Use samtools to extract sequences - (faster)"
+        read -p "Old style or New or Quit ? (o/n/q) : " OldOrNew
+        case $OldOrNew in
+            [Oo]* ) Fmt_Mpcmp_and_Chrmnmr ; break;;
+            [Nn]* ) samtools_genome_extractor ; break;;
+            [Qq]* ) break;;
+            * ) echo "Please answer G(enome) S(tacks) or Q(uit).";;
+        esac
+    done
+}
+
+while true; do
+    printf "\n%s\n\n" "Step 9: Extracting sequences flanking the markers to use for further analysis"
+    printf "%s\n" "We have different ways of searching for sequences and preparing output files that"
+    printf "%s\n" "can be used for input for tools such as Mapcomp and Chromonomer (although not directly)."
+    printf "%s\n" "Depending on how you got your markers you can extract sequences from the genome that you"
+    printf "%s\n" "used to call your SNPs or from a stacks catalog.gz file."
+    printf "%s\n" "You have to make some choices now:"
+    read -p "Use Genome or Stacks catalog or just call it Quits ? (g/s/q) : " GSQ
+    case $GSQ in
+        [Gg]* ) Ask_old_or_new ; break;;
+        [Ss]* ) catalog_extractor ; break;;
+        [Qq]* ) break;;
+        * ) echo "Please answer G(enome) S(tacks) or Q(uit).";;
+    esac
+done
+
+while true; do
+    printf "\n%s\n\n" "Do you want to generate more output files?"
+    printf "%s\n\n" "Same options as before. Genome (old / new scripts) or Stacks catalog"
+    read -p "Extract regions from genome using 'New' or 'Old' or 'Stacks catalog' or Quit ? (n/o/s/q) : " GSQagain
+    case $GSQagain in
+        [Nn]* ) samtools_genome_extractor ;;
+        [Oo]* ) Fmt_Mpcmp_and_Chrmnmr ;;
+        [Ss]* ) catalog_extractor ll;;
+        [Qq]* ) break;;
+        * ) echo "Please answer G(enome) S(tacks) or Q(uit).";;
+    esac
+done
+    
 
 echo "End of the pipe - Inspect the output files and log to see whether it ran successfully!"
+
+#TODO Add more logging towards the "end of the line"

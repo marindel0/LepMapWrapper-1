@@ -24,7 +24,7 @@ use Cwd qw(getcwd);
 # Sequence: <string>
 # 
 # 
-# Written by Zophonías O. Jónsson - Oct 18th 2022
+# Written by Zophonías O. Jónsson - Oct 25th 2022
 #########################################################################################################
 
 #########################################################################################################
@@ -35,7 +35,7 @@ my @arguments = @ARGV; #save arguments as a precaution
 
 ### The get options block
 
-my ($help, $markerlist_tsv, $genome_fasta, $outpath, $discard_below);
+my ($help, $markerlist_tsv, $genome_fasta, $outpath);
 
 #Let's be friendly
 sub Usage {
@@ -44,15 +44,13 @@ sub Usage {
 
 Two input files must be provided with the correct option switches
 
--m/--markerlist <file>\t:\tThe markerlist file.
+-m/--markerlist <file>\t:\tThe markerlist map file (from step 8).
 
--c/--catalog <file>\t:\tThe catalog file (gzipped)\n\n";
+-g/--genome <file>\t:\tThe catalog file (gzipped)\n\n";
 
 print "Optional parameters:
 
 -o/--outpath <path>\t:\tPath to write output files to (defaults to current directory)
-
--d/--discard <N>\t:\tDiscard stacks with fewer than <N> samples in stacks database (for speedup) defaults to 10
 
 -h/--help\t\t:\tPrint this message.
 
@@ -60,9 +58,9 @@ print "Optional parameters:
   exit;
 }
 
-GetOptions('h|help' => \$help, 'd|discard:i' => \$discard_below, 'm|markerlist=s' => \$markerlist_tsv, 'c|catalog=s' => \$genome_fasta, 'o|outpath:s' => \$outpath) or die ("Arguments in error!\n");
+GetOptions('h|help' => \$help, 'm|markerlist=s' => \$markerlist_tsv, 'g|genome=s' => \$genome_fasta, 'o|outpath:s' => \$outpath) or die ("Arguments in error!\n");
 Usage() if (@arguments == 0 || $help || not ($markerlist_tsv) || not ($genome_fasta));
-$discard_below = 10 if not ($discard_below); # set default to 10 if not provided
+
 
 # TODO provide option to enter outfilename and select various types of output files
 
@@ -82,30 +80,30 @@ my $counter=0;
 my @fileheader;   #TODO make local for individual subs 
 
 
-print "\nMarkerlist: $markerlist_tsv \n";
+print "\nMarkerlist order file: $markerlist_tsv \n";
 print "Genome: $genome_fasta \n";
 
-if (!defined($outpath)){
-    $outpath=getcwd();  
+if (defined($outpath)){
+    chomp($outpath);
+    if (-d $outpath) {
+        print "Outputfiles will be written to $outpath\n";
+        $outpath =~ s/\/$//;    # remove trailing slash if there is one and add back later (may be uneccesary)
+    }
+    elsif (-e $outpath) {
+        die "$outpath is a file, not a directory";
+    }
+    else { 
+        die "Couldn't find directory $outpath: $!";
+    } 
 }
-elsif (-d $outpath) {
-    print "Outputfiles will be written to $outpath\n";
-    $outpath =~ s/\/$//;    # remove trailing slash if there is one and add back later (may be uneccesary)
+else{
+    $outpath=getcwd();
 }
-elsif (-e $outpath) {
-    die "$outpath is a file, not a directory";
-}
-else { 
-    die "Couldn't find directory $outpath: $!";
-} 
-
-
 
 ### TODO Check for number of arguments passed.
 
 print "Output filename(s): $outfilebasename + extension \n";
 
-print "disregarding stacks with less than $discard_below sample hits in catalog\n";
 
 
 #########################################################################################################
@@ -174,156 +172,41 @@ sub parse_markerlist_file($){
 parse_markerlist_file($markerlist_tsv);
 
 sub add_sequences {
-    foreach my $markerlist_key (keys %markerlist_hash) {
+
+    print "Fetching 250 bp of sequence surrounding marker on chromosome.\n";
+    foreach my $marker (keys %markerlist_hash) {
         my $contig = $markerlist_hash{$marker}{'contig'};
         my $from = ($markerlist_hash{$marker}{'pos'} - 125);
-        my $to = ($markerlist_hash{$marker}{'pos'} + 125)
-        my @command = ("samtoos faidx", $genome_fasta, "$contig".":"."$from"."-"."$to", " |" );
-        open(INPIPE, system(@command) ) or die "can't do it";
+        my $to = ($markerlist_hash{$marker}{'pos'} + 125);
+        if ($from <=0) {   #if marker is close to beginning of contig
+            $to += (abs($from) +1);
+            $from = 1;
+        }
+        my $command = "samtools faidx $genome_fasta $contig:$from-$to";
+        #print "Commandline: $command\n"; 
+        print "*";
+        
+        sub handle_exit_gracefully(\$) {
+            my $com = shift;
+            die "Something went wrong in when executing $com" ;
+            # Not so graceful after all but can be improved if needed
+        }
+        
+        open(INPIPE, "$command |") or handle_exit_gracefully($command) ; #($exit=$? and handle_exit_gracefully($exit) ) );
         while( my $line = <INPIPE> ){
             chomp $line;
-            if ( $line =~ /^(>.*)$/ ){
+            if ( $line =~ /^>(.*)$/ ){
                $markerlist_hash{$marker}{'fasta_defline'} = $1;
             }
             elsif ( $line !~ /^\s*$/ ){
                $markerlist_hash{$marker}{'sequence'} .= $line;
             }
         }
+        close INPIPE;
     }
+    print "Finished fetching sequences.\n\n";
 }
 add_sequences();
-
-print Dumper(\%markerlist_hash); 
-
-   # The stacks catalog files are in a simple Fasta format (gzipped)
-   # Two types of alternating lines:
-   # Deflines starting with ">" followed by marker number and description: ">250 pos=NC_036838.1:294994:+ NS=11"
-   # Sequence follows until the next defline
-   # The defline of each sequence contains the position of RAD-tag is in the reference genome (e.g. pos=CM008043.1:9352:-) and the number of samples the RAD-tag was found (e.g. NS=1).
-
-# sub read_fasta_file {
-# 
-#     my $marker_ID='';
-#     my $stack_counter=0;
-#     my $discard_counter=0;
-#     
-#     if ($genome_fasta =~ /.gz$/) {
-#         open(INPIPE, "zcat $genome_fasta |") || die "can’t open pipe to $genome_fasta"; #or gunzip -c
-#     }
-#     else {
-#         open(INPIPE, $genome_fasta) || die "can’t open $genome_fasta";
-#     }
-#     
-#     print "\n* Please be patient. Reading the catalog takes a while *\n\n";
-#     
-#     my $discard=0;
-#     NEXTLINE: while( my $line = <INPIPE> ){
-#         chomp $line;
-# 
-#         if ( $line =~ /^(>.*)$/ ){
-#             my $defline = $1;
-#             $stack_counter++;
-#             $discard=0;
-#             $defline =~ m/^>(\d+)\spos=(\S+)\sNS=(\d+)$/;
-#             my ($stacks_no, $chr_pos, $nr_of_samples) = ($1, $2, $3);
-#             print "Stacks_no: $stacks_no, Chr:pos:strand $chr_pos, Number of Stacks hits: $nr_of_samples \n";
-#             if ($nr_of_samples < $discard_below) {
-#                 $discard_counter++;
-#                 $discard=1;  #discard until next match
-#                 next NEXTLINE ;
-#             }
-#             my ($CHROM, $POS, $strand) = split (':', $chr_pos);
-#             print "Chromosome: $CHROM - Position: $POS - Strand: $strand\n";
-#             $marker_ID = join ('_', $CHROM, $POS);
-#             $catalog_hash{$marker_ID}{'contig'} = $CHROM;
-#             $catalog_hash{$marker_ID}{'pos'} = $POS;
-#             $catalog_hash{$marker_ID}{'defline'} = $defline;
-#             $catalog_hash{$marker_ID}{'catalog_ID'} = $stacks_no;
-#             $catalog_hash{$marker_ID}{'strandpos'} = $strand;
-#             $catalog_hash{$marker_ID}{'nr_of_samples'} = $nr_of_samples;  #number of samples hitting catalog (useful for calculating missingless)
-#         }
-#         elsif ( $line !~ /^\s*$/ and not $discard ){
-#            $catalog_hash{$marker_ID}{'sequence'} .= $line;
-#         }
-#     }
-#     close(INPIPE);
-#     print "Done reading fasta file \n";
-#     print "Discarded $discard_counter out of $stack_counter stacks in catalog file.\n";
-# }
-# read_fasta_file();  #No need to be fancy and pass reference to catalog_hash (maybe later if this script grows)
-# 
-# 
-# sub sequences_2_markerlisthash {  #this is the brute force approach - optimize later by breaking up into LG's
-# 
-#     print "Start cross referencing catalogs and markerlist\n";
-#     
-#     foreach my $stack_key ( keys %catalog_hash ) {
-#         my $stack_contig = $catalog_hash{$stack_key}{'contig'};
-#         my $stack_pos = $catalog_hash{$stack_key}{'pos'};
-# 
-#         foreach my $markerlist_key (keys %markerlist_hash) {     #move comparison here - save some time
-#             my $markerlist_contig = $markerlist_hash{$markerlist_key}{'contig'};            
-#             my $marker_hits=0;
-# 
-#             if ($markerlist_contig eq $stack_contig) {            #if marker and stack are on the same contig - keep looking (this is slow and can be optimized)
-#             
-#                 my $marker_pos = $markerlist_hash{$markerlist_key}{'pos'};
-#                 my $distance = ($marker_pos - $stack_pos);           
-#                 my $stack_length = length($catalog_hash{$stack_key}{'sequence'});
-#                 if ( abs($distance) < $stack_length ) {
-#                     $catalog_cache{$markerlist_key}{$stack_key} = $distance;
-#                 }
-#             }
-#         }
-#     }
-# }    
-# 
-# 
-# sub resolve_conflicts { 
-#     print "\nResolving conflicts \n";
-#     resolve conflicts and transfer data to markerlist_hash
-#     my ($misses, $matches, $close_encounters) = 0;
-#     
-#     foreach my $markerlist_key (keys %markerlist_hash) {      #iterate through markerlist hash 
-# 
-#         if (not keys (%{$catalog_cache{$markerlist_key}}) ) {                                          # if no entry in catalog cache then there is no info
-#             $misses++;
-#             $markerlist_hash{$markerlist_key}{'catalog_defline'} = "NA";
-#             $markerlist_hash{$markerlist_key}{'sequence'} = "NA";
-#             $markerlist_hash{$markerlist_key}{'catalog_ID'} = "NA";
-#             $markerlist_hash{$markerlist_key}{'strandpos'} = "NA";
-#             $markerlist_hash{$markerlist_key}{'nr_of_samples'} = "NA";
-#             $markerlist_hash{$markerlist_key}{'distance'} = "NA";
-#             $markerlist_hash{$markerlist_key}{'alternate_stacks'} = "NA";
-#         }
-#         else {                                                              # if there is a hit we have to select the best one
-#             $matches++;
-#             my @stack_keys = keys (%{$catalog_cache{$markerlist_key}}) ;    # all the keys in the inner hash           
-#             if ((@stack_keys) > 1 ){                                        # if there is more than one stack we select the one starting closest to the marker
-#                 my @sorted_keys;
-#                 foreach my $k (sort { abs($catalog_cache{$markerlist_key}{$a}) <=> abs($catalog_cache{$markerlist_key}{$b}) } @stack_keys) {
-#                     push(@sorted_keys, $k);
-#                 }
-#                 @stack_keys = @sorted_keys;                                 # return the sorted keys to the @stack_keys array
-#             }
-#             my $stack_key = shift(@stack_keys);   # first key contains the closest hit
-#             $close_encounters += @stack_keys;     # the rest are close encounters                
-#             $markerlist_hash{$markerlist_key}{'catalog_defline'} = $catalog_hash{$stack_key}{'defline'};
-#             $markerlist_hash{$markerlist_key}{'sequence'} = $catalog_hash{$stack_key}{'sequence'} ;
-#             $markerlist_hash{$markerlist_key}{'catalog_ID'} = $catalog_hash{$stack_key}{'catalog_ID'};
-#             $markerlist_hash{$markerlist_key}{'strandpos'} = $catalog_hash{$stack_key}{'strandpos'};
-#             $markerlist_hash{$markerlist_key}{'nr_of_samples'} = $catalog_hash{$stack_key}{'nr_of_samples'};
-#             $markerlist_hash{$markerlist_key}{'distance'} = $catalog_cache{$markerlist_key}{$stack_key};   
-#             $markerlist_hash{$markerlist_key}{'alternate_stacks'} = (join(", ", @stack_keys) or "");   # what remains in @stack_keys are alternate stacks
-#         }
-#     }
-#     return ($matches, $close_encounters, $misses);    
-# }
-
-sequences_2_markerlisthash();
-my @success = resolve_conflicts();
-print "\n";
-print "Found: " . $success[0] . " matching catalog stacks. \nResolved " . $success[1] . " chlashes\n" . $success[2] . " markers were missing from the catalog\n";
 
 sub sort_markers_by_line(\%) {  #make sure that we have the same order as in the markerlist input file
     my $hashref = shift;
@@ -340,7 +223,7 @@ sub write_output_files(\@;\@;\@;$;$) {      #could pass hash by reference but le
 
     my @first_five=@markerorder[0..5];  
     # First print something to screen to show that all is well
-    print "\nBeginning of outfile\n";
+    print "\nBeginning of custom outfile: $filename \n";
     if (@fileheader) { print join("$sep", @fileheader) . "\n" };
     foreach my $marker (@first_five) {
         my @line= ();    #clear preceding line
@@ -366,16 +249,24 @@ sub write_output_files(\@;\@;\@;$;$) {      #could pass hash by reference but le
 }
 
 sub write_custom_output_file {   #quick & sloppy but works first some custom format output fil with most of the info gathered
-    my @fileheader = ("CHR","marker_id","male_pos","female_pos","contig","pos","strand","pos_in_stack","catalog_defline","nr_of_samples","alternate_stacks","sequence");
-    my @columnames = ('CHR','marker_id','male_pos','female_pos','contig','pos','strandpos','distance','catalog_defline','nr_of_samples','alternate_stacks','sequence'); 
+    my @fileheader = ("CHR","marker_id","male_pos","female_pos","contig","pos","fasta_defline","sequence");
+    my @columnames = ('CHR','marker_id','male_pos','female_pos','contig','pos','fasta_defline','sequence'); 
     my @markers_by_line = sort_markers_by_line(%markerlist_hash);
-    write_output_files(@fileheader, @columnames, @markers_by_line, "\t", "$outpath/union_$outfilebasename.tsv");
+    write_output_files(@fileheader, @columnames, @markers_by_line, "\t", "$outpath/flank_seq_$outfilebasename.tsv");
 }
 write_custom_output_file();
 
 sub write_mapcomp_file {   
     #my @columnames = ('CHR','female_pos','marker_id','sequence');  #not needed
     my @markerorder = sort_markers_by_line(%markerlist_hash);
+    print "\n\nMapcomp files have a \"SpeciesName\" identifier field. What do you want to use ?\n";
+    print "Do not use commas and avoid spaces or other special characters.\n";
+    print "Unless you enter something <" . basename($markerlist_tsv) . "> will be used.\n";
+    print "Enter a name: ";
+    my $specieslabel = <STDIN>;
+    chomp($specieslabel);
+    $specieslabel ||= basename($markerlist_tsv);
+    
     my $filename ="$outpath/mapcomp_$outfilebasename.csv";
     unless (open (OUT, ">$filename")){
         die "Can't write to $filename $!";
@@ -392,7 +283,7 @@ sub write_mapcomp_file {
 write_mapcomp_file();
 
 sub write_fasta_file {
-    my $filename = "$outpath/stacks_from_$outfilebasename.fasta";
+    my $filename = "$outpath/flank_seq_$outfilebasename.fasta";
     my @markerorder = sort_markers_by_line(%markerlist_hash);
     unless (open (OUT, ">$filename")){
         die "Can't write to $filename $!";
@@ -401,8 +292,8 @@ sub write_fasta_file {
         my $defline = ">". $markerlist_hash{$marker}{'CHR'} . ":" ;
         $defline .= "female_pos=" . $markerlist_hash{$marker}{'female_pos'} . ":" ;
         $defline .= "marker=" . $markerlist_hash{$marker}{'marker_id'} . ":" ;
-        $defline .= "contig=" . $markerlist_hash{$marker}{'contig'} . ":" ;
-        $defline .= $markerlist_hash{$marker}{'pos'} . "\n";
+        $defline .= "region=" . $markerlist_hash{$marker}{'fasta_defline'} . ":" ;
+        $defline .= "marker_pos=" . $markerlist_hash{$marker}{'pos'} . "\n";
         print OUT $defline;
         my $seq = $markerlist_hash{$marker}{'sequence'};
         $seq =~ s/(.{0,80})/$1\n/g;
@@ -414,7 +305,8 @@ sub write_fasta_file {
 write_fasta_file();
 
 #write_mapcomp_format_markerlist();
-print "\nDone!\n\n";
-exit 1;
+print "\nDone whit this one!\n\n";
+
+
 
 
