@@ -669,7 +669,7 @@ while true; do
     case $GSQagain in
         [Nn]* ) samtools_genome_extractor ;;
         [Oo]* ) Fmt_Mpcmp_and_Chrmnmr ;;
-        [Ss]* ) catalog_extractor ll;;
+        [Ss]* ) catalog_extractor ;;
         [Qq]* ) break;;
         * ) echo "Please answer G(enome) S(tacks) or Q(uit).";;
     esac
