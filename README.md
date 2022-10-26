@@ -23,9 +23,9 @@ The wrapper sets up three directories
 It is convenient to copy or symlink your input files and indexed genome / stacks_catalog.fasta.gz into the 
 respective directories (althoug it is not required).
 Run like so:
-
+```
 \> 00_scripts/00_LepMap-Wrapper.sh /path/to/filtered.snps.vcf /path/to/pedigree_file.tsv
-
+```
 The "master script" should now lead you through the rest.
 
 ## Dependencies
