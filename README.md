@@ -29,9 +29,12 @@ $> 00_scripts/00_LepMap-Wrapper.sh /path/to/filtered.snps.vcf /path/to/pedigree_
 The "master script" should now lead you through the rest.
 
 ## Dependencies
+- LepMap3 (obviously) and a working java runtime environment
 - Linux or MacOS
-- Perl / Python 2.7 / and R > v4 (plus packages
+- Perl 5+ / Python 2.7 / and R > v4 
 - Samtools (a recent release)
+
+Besides, vcftools are convenient for pre-filtering if following this guide
 
 Different parts of the pipeline will depend on different things (this is a mix & match) so most of it should
 run even if some dependencies are missing.  If things go wrong, just try again.
@@ -74,9 +77,9 @@ CHR POS 0    0    0    0     Baba  Amma  Mama  Mama  Mama
 CHR POS 2    1    2    1     2     1     0     0     0
 CHR POS 0    0    0    0     0     0     0     0     0
 ```
-It's probably easiest to use a spreadsheat to open and <transpose paste> from a Stacks catalog file, Radiator Strata file
+It is probably easiest to use a spreadsheat to edit and \"transpose paste\" from a Stacks catalog file, Radiator Strata file
 or extract the header from the vcf file used as input.  There is a little perl script found floating around on them
-internet called transposeTabDelimited.pl in 00_scripts/utilities/ that can be helpful.
+internet called ``transposeTabDelimited.pl in `00_scripts/utilities/` that can be helpful.
 One way to start is to get the list of names from the Stacks catalog like this:
 ```
 > zcat catalog.calls | head -n 15 | grep '^#CHROM' | cut --complement -f2-9 > file.txt
