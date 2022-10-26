@@ -73,3 +73,46 @@ CHR POS 0    0    0    0     Baba  Amma  Mama  Mama  Mama
 CHR POS 2    1    2    1     2     1     0     0     0
 CHR POS 0    0    0    0     0     0     0     0     0
 ```
+It's probably easiest to use a spreadsheat to open and <transpose paste> from a Stacks catalog file, Radiator Strata file
+or extract the header from the vcf file used as input.  There is a little perl script found floating around on them
+internet called transposeTabDelimited.pl in 00_scripts/utilities/ that can be helpful.
+One way to start is to get the list of names from the Stacks catalog like this:
+```
+> zcat catalog.calls | head -n 15 | grep '^#CHROM' | cut --complement -f2-9 > file.txt
+```
+The vcf file can also be used the same way skipping the zcat step.
+
+### The vcf file
+Stacks populations can output VCFv4.2 format files that are convenient as input. It is probably best to do relatively loose
+filtering in populations and then use vcftools to filter rather aggressively.  We only want high coverage loci.
+Here is an example:
+```
+> vcftools --vcf AdamsFam.vcf --min-alleles 2 --max-alleles 4 --max-missing 0.9 --mac 15 --remove-indels -c --recode > AdamsFam_filtered.vcf
+```
+Note that the --max-missing parameter is a bit counter-intuitive, 0.9 actually means that max allowed missingness is 0.1 or 10%
+
+
+### Other tricks
+If you are using snps from reads mapped onto a related genome as input you may want to remove markers placed outside scaffolds.
+The details of how to do this depend on the source of the genome because of different naming conventions used (ensembl / ncbi)
+but here is an example of how this can be done for ncbi genomes wit scaffold names starting in "NC_"
+
+* Vcf-sort, bgzip and tabix index the vcf file from Stacks populations:
+```
+> vcf-sort AdamsFam_filtered.vcf > AdamsFam_filt_sort.vcf
+> bgzip AdamsFam_filt_sort.vcf
+> tabix AdamsFam_filt_sort.vcf.vcf.gz
+```
+* Generate the list of scaffolds (chromosomes) and unplaced contigs:
+```
+> zcat AdamsFam_filt_sort.vcf.vcf.gz | grep -v "^#" | cut -f1 | sort | uniq > AdamsFam_all_contigs.txt
+> grep "NC_" AdamsFam_all_contigs.txt > AdamsFam_scaffolds_only.txt
+```
+* We need the list of chromosomes as a single space separated line with --chr before each entry.
+```
+> echo "" $(cat AdamsFam_all_contigs.txt) |sed -e 's/ / --chr /g' -- > chr-contiglist.txt
+```
+This list can then be used to filter the vcf like so.
+```
+> vcftools --vcf AdamsFam_filtered.vcf --recode $(cat chr-contiglist.txt) --out AdamsFam_filt_scaffolds.vcf
+```
