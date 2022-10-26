@@ -19,6 +19,7 @@ The wrapper sets up three directories
 * 00_scripts/
 * 01_input_files/
 * 02_genome_files/
+
 It is convenient to copy or symlink your input files and indexed genome / stacks_catalog.fasta.gz into the 
 respective directories (althoug it is not required).
 Run like so:
