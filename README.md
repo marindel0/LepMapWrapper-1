@@ -29,7 +29,7 @@ $> 00_scripts/00_LepMap-Wrapper.sh /path/to/filtered.snps.vcf /path/to/pedigree_
 The "master script" should now lead you through the rest.
 
 ## Dependencies
-- LepMap3 (obviously) and a working java runtime environment
+- [LepMap3](https://sourceforge.net/projects/lep-map3/) (obviously) and a working java runtime environment
 - Linux or MacOS
 - Perl 5+ / Python 2.7 / and R > v4 
 - Samtools (a recent release)
@@ -56,7 +56,7 @@ you will need either (or both):
 
 ### The pedigree file
 LepMap3 requires a custom pedigree file that can include one or more families with or without grandparents etc.
-The format is "transposed" and tab separated. It is not easy to show the tabbed format in Readme file but to summarize:
+The format is "transposed" and **tab separated**. It is not easy to show the tabbed format in Readme file but to summarize:
 - There will be six lines in the table.  All lines start with CHR \t POS \t (for some strange reason).
 - There will be one column per individual (plus the two columns with CHR and POS)
 
@@ -79,7 +79,7 @@ CHR POS 0    0    0    0     0     0     0     0     0
 ```
 It is probably easiest to use a spreadsheat to edit and \"transpose paste\" from a Stacks catalog file, Radiator Strata file
 or extract the header from the vcf file used as input.  There is a little perl script found floating around on them
-internet called ``transposeTabDelimited.pl in `00_scripts/utilities/` that can be helpful.
+internet called `transposeTabDelimited.pl` in `00_scripts/utilities/` that can be helpful.
 One way to start is to get the list of names from the Stacks catalog like this:
 ```
 > zcat catalog.calls | head -n 15 | grep '^#CHROM' | cut --complement -f2-9 > file.txt
@@ -120,3 +120,5 @@ This list can then be used to filter the vcf like so.
 ```
 > vcftools --vcf AdamsFam_filtered.vcf --recode $(cat chr-contiglist.txt) --out AdamsFam_filt_scaffolds.vcf
 ```
+### Other ways to generate input files
+
