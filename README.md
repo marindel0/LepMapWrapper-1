@@ -23,11 +23,13 @@ It is convenient to copy or symlink your input files and indexed genome / stacks
 respective directories (althoug it is not required).
 Run like so:
 
->\> 00_scripts/00_LepMað-Wrapper.sh /path/to/filtered.snps.vcf /path/to/pedigree_file.tsv
+>\> 00_scripts/00_LepMap-Wrapper.sh /path/to/filtered.snps.vcf /path/to/pedigree_file.tsv
 
-The scripts should now lead you through the rest
+The "master script" should now lead you through the rest.
 
 ## Dependencies
 - Linux or MacOS
 - Perl / Python 2.7 / and R > v4 (plus 
 - samtools (some fairly recent release)
+Different parts of the pipeline will depend on different things (this is a mix & match) so most of it should
+run even if some dependencies are missing.  If things go wrong, just try again.
