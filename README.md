@@ -38,7 +38,7 @@ run even if some dependencies are missing.  If things go wrong, just try again.
 We need two types of input files to get the pipeline started:
 
 1) A vcf file with filtered snps with high genotyping coverage in the family, and 
-2) a custom pedigree file that is a bit of manual labor to assemble.  
+2) A custom pedigree file that is a bit of manual labor to assemble (see below).
 
 LepMap3 allows other types of input but vcf is what this wrapper is customized for.  Later stages involve
 retrieving DNA sequence from either a genome or a stacks catalog.fasta.gz file from Stacks. To run them 
