@@ -29,7 +29,25 @@ The "master script" should now lead you through the rest.
 
 ## Dependencies
 - Linux or MacOS
-- Perl / Python 2.7 / and R > v4 (plus 
+- Perl / Python 2.7 / and R > v4 (plus packages 
 - samtools (some fairly recent release)
 Different parts of the pipeline will depend on different things (this is a mix & match) so most of it should
 run even if some dependencies are missing.  If things go wrong, just try again.
+
+## Preparation of input files
+We need two types of input files to get the pipeline started:
+
+1) A vcf file with filtered snps with high genotyping coverage in the family, and 
+2) a custom pedigree file that is a bit of manual labor to assemble.  
+
+LepMap3 allows other types of input but vcf is what this wrapper is customized for.  Later stages involve
+retrieving DNA sequence from either a genome or a stacks catalog.fasta.gz file from Stacks. To run them 
+you will need either (or both):
+
+3) The genome fasta file that was used for sequence alignment / snp calling, which can be bgzip compressed.
+* The genome file should be faidx indexed if samtools are used for seq extraction
+4) If snps were called using the Stacks denovo pipeline then sequences can be retrieved from the catalog.fasta.gz
+* The catalog should already be gzipped - don't unzip it.
+
+
+
