@@ -305,7 +305,7 @@ sub write_fasta_file {
 write_fasta_file();
 
 #write_mapcomp_format_markerlist();
-print "\nDone whit this one!\n\n";
+print "\nDone whith this one !\n\n";
 
 
 

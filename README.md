@@ -64,10 +64,11 @@ The format is "transposed" and tab separated. It is not easy to show the tabbed 
 * Line 5: Sex: Male = 1, Female = 2, Unknown = 0.  Can be 0 for all except the parents.
 * Line 6: Phenotype: Irrelevant for us. Enter 0 for all.
 
-The important thing is to get the parents and grandparents right.  Here is an examlpe:
+It is important to get the parents and grandparents right, the rest is simple.  
+Here is an examlpe:
 ```
 CHR POS 1    1    1    1     1     1     1     1     1      etc...
-CHR POS Amma Afi  Baba Diado Papa  Mama  F2-1  F2-2  F2-3
+CHR POS Amma Afi  Baba Diado Mama  Papa  F2-1  F2-2  F2-3
 CHR POS 0    0    0    0     Diado Afi   Papa  Papa  Papa
 CHR POS 0    0    0    0     Baba  Amma  Mama  Mama  Mama
 CHR POS 2    1    2    1     2     1     0     0     0
