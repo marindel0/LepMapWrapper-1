@@ -66,10 +66,10 @@ The format is "transposed" and tab separated. It is not easy to show the tabbed 
 
 The important thing is to get the parents and grandparents right.  Here is an examlpe:
 ```
-CHR POS	1	1	1	1	1	1	1	1	1
-CHR	POS	Amma	Afi	Baba	Diado	Papa	Mama	Offspring_1	Offspring_2	Offspring_3
-CHR	POS	0	0	0	0	Diado	Afi	Papa	Papa	Papa
-CHR	POS	0	0	0	0	Baba	Amma	Mama	Mama	Mama
-CHR	POS	2	1	2	1	2	1	0	0	0
-CHR	POS	0	0	0	0	0	0	0	0	0
+CHR POS 1    1    1    1     1     1     1     1     1      etc...
+CHR POS Amma Afi  Baba Diado Papa  Mama  F2-1  F2-2  F2-3
+CHR POS 0    0    0    0     Diado Afi   Papa  Papa  Papa
+CHR POS 0    0    0    0     Baba  Amma  Mama  Mama  Mama
+CHR POS 2    1    2    1     2     1     0     0     0
+CHR POS 0    0    0    0     0     0     0     0     0
 ```
