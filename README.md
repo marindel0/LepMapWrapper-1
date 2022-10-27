@@ -5,7 +5,7 @@ Basesd on (and borrowing heavily from) the [clairemerot/lepmap3_pipeline](https:
 
 ## Introduction
 There is a lot of valuable information in the [LepMap3 wiki](https://sourceforge.net/p/lep-map3/wiki/LM3%20Home/) 
-but there is a considerable learning curve to get things to work.
+but there is a considerable learning curve in order to get things to work.
 This wrapper tries to lead you through the process in an interactive manner and generates a whole
 slew of output organized by timestamps so analyses can be repeated and compared, in a convenient way.
 It is still wery much a work in progress.  At the moment it only handles one family gracefully
@@ -25,7 +25,7 @@ The wrapper sets up three directories
 It is convenient to copy or symlink your input files and indexed genome / stacks_catalog.fasta.gz into the
 respective directories (althoug it is not required).
 Run like so:
-```
+```console
 $> 00_scripts/00_LepMap-Wrapper.sh /path/to/filtered.snps.vcf /path/to/pedigree_file.tsv
 ```
 The "master script" should now lead you through the rest. You might have to make the script executable
@@ -49,7 +49,7 @@ We need two types of input files to get the wrapper-pipeline started:
 2) A custom pedigree file that is a bit of manual labor to assemble (see below).
 
 LepMap3 allows several types of input, but vcf is what this wrapper is customized for.  Later stages involve
-retrieving DNA sequence from either a * *genome* * or a stacks `catalog.fasta.gz` file from Stacks. To run them
+retrieving DNA sequence from either a *genome* or a stacks `catalog.fasta.gz` file from Stacks. To run them
 you will need either (or both):
 
 3) The genome fasta file that was used for sequence alignment / snp calling, which can be bgzip compressed.
@@ -81,19 +81,20 @@ CHR POS 2    1    2    1     2     1     0     0     0
 CHR POS 0    0    0    0     0     0     0     0     0
 ```
 It is probably easiest to use a spreadsheat to edit and \"transpose paste\" from a Stacks catalog file, Radiator Strata file
-or extract the header from the vcf file used as input.  There is a little perl script found floating around on them
+or extract the header from the vcf file used as input.  There is a little perl script found floating around on the
 internet called `transposeTabDelimited.pl` in `00_scripts/utilities/` that can be helpful.
 One way to start is to get the list of names from the Stacks catalog like this:
-```
+```console
 > zcat catalog.calls | head -n 15 | grep '^#CHROM' | cut --complement -f2-9 > file.txt
 ```
 The vcf file can also be used the same way skipping the zcat step.
 
 ### The vcf file
 Stacks populations can output VCFv4.2 format files that are convenient as input. It is probably best to do relatively loose
-filtering in populations and then use vcftools to filter rather aggressively.  We only want high coverage loci.
-Here is an example:
-```
+filtering in populations and then use vcftools to filter rather aggressively.  It is most convenient to * *write single snp* * 
+in Stacks. We only want high coverage loci.
+Here is an example of a pre-filtering step:
+```console
 > vcftools --vcf AdamsFam.vcf --min-alleles 2 --max-alleles 4 --max-missing 0.9 --mac 15 --remove-indels -c --recode > AdamsFam_filtered.vcf
 ```
 Note that the --max-missing parameter is a bit counter-intuitive, 0.9 actually means that max allowed missingness is 0.1 or 10%
@@ -105,22 +106,22 @@ The details of how to do this depend on the source of the genome because of diff
 but here is an example of how this can be done for ncbi genomes wit scaffold names starting in "NC_"
 
 * Vcf-sort, bgzip and tabix index the vcf file from Stacks populations:
-```
+```console
 > vcf-sort AdamsFam_filtered.vcf > AdamsFam_filt_sort.vcf
 > bgzip AdamsFam_filt_sort.vcf
 > tabix AdamsFam_filt_sort.vcf.vcf.gz
 ```
 * Generate the list of scaffolds (chromosomes) and unplaced contigs:
-```
+```console
 > zcat AdamsFam_filt_sort.vcf.vcf.gz | grep -v "^#" | cut -f1 | sort | uniq > AdamsFam_all_contigs.txt
 > grep "NC_" AdamsFam_all_contigs.txt > AdamsFam_scaffolds_only.txt
 ```
 * We need the list of chromosomes as a single space separated line with --chr before each entry.
-```
+```console
 > echo "" $(cat AdamsFam_all_contigs.txt) |sed -e 's/ / --chr /g' -- > chr-contiglist.txt
 ```
 This list can then be used to filter the vcf like so.
-```
+```console
 > vcftools --vcf AdamsFam_filtered.vcf --recode $(cat chr-contiglist.txt) --out AdamsFam_filt_scaffolds.vcf
 ```
 ### Other ways to generate input files
