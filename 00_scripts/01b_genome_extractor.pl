@@ -267,7 +267,7 @@ sub write_mapcomp_file {
     chomp($specieslabel);
     $specieslabel ||= basename($markerlist_tsv);
     
-    my $filename ="$outpath/mapcomp_$outfilebasename.csv";
+    my $filename ="$outpath/mapcomp_gen_$outfilebasename.csv";
     unless (open (OUT, ">$filename")){
         die "Can't write to $filename $!";
     }

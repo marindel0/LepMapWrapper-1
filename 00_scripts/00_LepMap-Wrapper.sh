@@ -24,6 +24,8 @@ else
 fi
 if [ -f "$PEDIGREE" ]; then
     printf "$PEDIGREE exists.\n"
+    NUM_SAMPLES=$(($(awk -F'\t' '{print NF; exit}' $PEDIGREE)-2))
+    printf "$NUM_SAMPLES in pedigree fil\n"
 else 
     echo "file $PEDIGREE does not exist. Please try again!"
     exit 1
@@ -68,12 +70,12 @@ echo "logfile (parameters): ${LOGFILE}"
 ### Input file is there, now prompt for more parameters or set defaults
 
 printf "\nNow you will be asked to enter various parameters\n\n"
-echo "What was the minimum coverage set in previous filtering steps? This will be used for logfile only"
-read -p "Enter min_cov - default [10]: " MIN_COV
-MIN_COV=${MIN_COV:-10}
-echo $MIN_COV
-echo
-echo "Later we will be able to process a list of families but for now one is enough - not sure whether we will use this parameter for the time being"
+#echo "What was the minimum coverage set in previous filtering steps? This will be used for logfile only"
+#read -p "Enter min_cov - default [10]: " MIN_COV
+#MIN_COV=${MIN_COV:-10}
+#echo $MIN_COV
+#echo
+echo "This is just for the logfile ..."
 read -p "Enter name of family - default [TheSimpsons]: " FAMILY
 FAMILY=${FAMILY:-TheSimpsons}
 echo $FAMILY
@@ -113,7 +115,7 @@ fi
 {
     printf "%-25s %s %s %s %s\n" "CPU core use:" $CPU " out of" $CPU_COUNT "available"
     printf "%-25s %s\n\n" "Path to LepMap3:" $LEPMAPDIR
-    printf "%-25s %s\n" "Input min coverage:" $MIN_COV
+   # printf "%-25s %s\n" "Input min coverage:" $MIN_COV
     printf "%-25s %s\n" "Family name:" $FAMILY
 }>>$LOGFILE
 
@@ -605,6 +607,20 @@ function catalog_extractor {
         read -e -p "Enter the path to the stacks catalog.fasta.gz file : " CATALOG
         if [ -f "$CATALOG" ]; then
             printf "\n$CATALOG file found.\n"
+            denovo_pattern="^>[0-9]*\sNS=[0-9]*\scontig="
+            refmap_pattern="^>[0-9]*\spos=[[:alnum:]]*.*NS=[0-9]*"
+            firstline=$(zcat $CATALOG | head -n 1)
+            printf "First line of catalog file: $firstline  => "
+            if [[ $firstline =~ $denovo_pattern ]]; then
+                catalogtype="denovo"
+            elif [[ $firstline =~ $refmap_pattern ]]; then
+                catalogtype="reference_aligned"
+            else
+                catalogtype="undefined"
+            fi
+    
+            printf "Catalog_type detected as: $catalogtype\n\n"
+            if [[ $catalogtype =~ "undefined" ]]; then echo "This does not look good - quitting now\n" ; exit 1; fi
             break
         else 
             echo "file $CATALOG does not exist. Please try again!"
@@ -617,17 +633,23 @@ function catalog_extractor {
         fi
     done
     
+    NINETYFIVE=$((NUM_SAMPLES*95/100))
     printf "\nDiscarding low coverage stacks from the catalog will seriously speed up things.\n"
-    printf "A samplenumber close to the number of individuals in family is recommended."
-    read -p "Enter minimal samplenumber threshold - default [100]: " DISCARD
-    DISCARD=${DISCARD:-100}
+    printf "A sample number close to 95% of the number of individuals in family is recommended."
+    read -p "Enter minimal samplenumber threshold - suggested [$NINETYFIVE]: " DISCARD
+    DISCARD=${DISCARD:-$NINETYFIVE}
     
     ls $MAPDIR | while read i
     do 
          echo "Infile: $i"
-         printf "command:  perl ./00_scripts/01b_genome_extractor.pl -d $DISCARD -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR \n"
-         (perl ./00_scripts/02_catalog_extractor.pl -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR -d $DISCARD </dev/tty)
-         echo "return from perl"
+         if [[ $catalogtype =~ "reference_aligned" ]]; then
+            printf "command:  perl ./00_scripts/02_catalog_extractor.pl -d $DISCARD -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR \n"
+            (perl ./00_scripts/02_catalog_extractor.pl -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR -d $DISCARD </dev/tty)
+         elif [[ $catalogtype =~ "denovo" ]]; then
+            printf "command:  perl ./00_scripts/02b_denovo_catalog_extractor.pl -d $DISCARD -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR \n"
+            (perl ./00_scripts/02b_denovo_catalog_extractor.pl -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR -d $DISCARD </dev/tty)            
+         fi
+         echo "catalog extracted"
     done
 }
 
@@ -647,12 +669,12 @@ function Ask_old_or_new {
 }
 
 while true; do
-    printf "\n%s\n\n" "Step 9: Extracting sequences flanking the markers to use for further analysis"
+    printf "\n\n%s\n\n" "Step 9: Extracting sequences flanking the markers to use for further analysis"
     printf "%s\n" "We have different ways of searching for sequences and preparing output files that"
-    printf "%s\n" "can be used for input for tools such as Mapcomp and Chromonomer (although not directly)."
+    printf "%s\n" "can be used for input for tools such as Mapcomp and Chromonomer (after some tweaking)."
     printf "%s\n" "Depending on how you got your markers you can extract sequences from the genome that you"
     printf "%s\n" "used to call your SNPs or from a stacks catalog.gz file."
-    printf "%s\n" "You have to make some choices now:"
+    printf "\n%s\n" "You have to make some choices now:"
     read -p "Use Genome or Stacks catalog or just call it Quits ? (g/s/q) : " GSQ
     case $GSQ in
         [Gg]* ) Ask_old_or_new ; break;;
