@@ -35,7 +35,7 @@ my @arguments = @ARGV; #save arguments as a precaution
 
 ### The get options block
 
-my ($help, $markerlist_tsv, $genome_fasta, $outpath);
+my ($help, $markerlist_tsv, $genome_fasta, $outpath, $specieslabel);
 
 #Let's be friendly
 sub Usage {
@@ -52,17 +52,19 @@ print "Optional parameters:
 
 -o/--outpath <path>\t:\tPath to write output files to (defaults to current directory)
 
+-l/--label\t:\tA short label included at the beginning of each line in mapcomp files.
+
 -h/--help\t\t:\tPrint this message.
 
 ";
   exit;
 }
 
-GetOptions('h|help' => \$help, 'm|markerlist=s' => \$markerlist_tsv, 'g|genome=s' => \$genome_fasta, 'o|outpath:s' => \$outpath) or die ("Arguments in error!\n");
+GetOptions('h|help' => \$help, 'm|markerlist=s' => \$markerlist_tsv, 'g|genome=s' => \$genome_fasta, 'o|outpath:s' => \$outpath, 'l|label:s' => \$specieslabel) or die ("Arguments in error!\n");
 Usage() if (@arguments == 0 || $help || not ($markerlist_tsv) || not ($genome_fasta));
 
 
-# TODO provide option to enter outfilename and select various types of output files
+# TODO provide option to enter select whick types of output files to write ... or maybe not.
 
 #(print $markerlist_tsv . " " . $genome_fasta) or Usage();
 ### Set global variables
@@ -77,7 +79,7 @@ my %catalog_cache;
 (my $outfilebasename = $strippedbasename) =~ s/^contig_order_//;
 #my $workingdir=getcwd();
 my $counter=0;
-my @fileheader;   #TODO make local for individual subs 
+my @fileheader;   #This should be removed and made local TODO
 
 
 print "\nMarkerlist order file: $markerlist_tsv \n";
@@ -104,6 +106,17 @@ else{
 
 print "Output filename(s): $outfilebasename + extension \n";
 
+sub get_specieslabel {
+    print "\n\nMapcomp files have a \"SpeciesName\" identifier field. What do you want to use ?\n";
+    print "Do not use commas and avoid spaces or other special characters.\n";
+    print "Unless you enter something <" . basename($markerlist_tsv) . "> will be used.\n";
+    print "Enter a name: ";
+    $specieslabel = <STDIN>;
+    chomp($specieslabel);
+    $specieslabel ||= $strippedbasename;
+}
+
+unless (defined($specieslabel))  { get_specieslabel() };
 
 
 #########################################################################################################
@@ -259,13 +272,6 @@ write_custom_output_file();
 sub write_mapcomp_file {   
     #my @columnames = ('CHR','female_pos','marker_id','sequence');  #not needed
     my @markerorder = sort_markers_by_line(%markerlist_hash);
-    print "\n\nMapcomp files have a \"SpeciesName\" identifier field. What do you want to use ?\n";
-    print "Do not use commas and avoid spaces or other special characters.\n";
-    print "Unless you enter something <" . basename($markerlist_tsv) . "> will be used.\n";
-    print "Enter a name: ";
-    my $specieslabel = <STDIN>;
-    chomp($specieslabel);
-    $specieslabel ||= basename($markerlist_tsv);
     
     my $filename ="$outpath/mapcomp_gen_$outfilebasename.csv";
     unless (open (OUT, ">$filename")){
@@ -274,7 +280,7 @@ sub write_mapcomp_file {
     foreach my $marker (@markerorder) {
         my @line= ();    #clear preceding line
         (my $linkage_group = $markerlist_hash{$marker}{'CHR'}) =~ s/LG// ;  #strip LG from linkage group as in mapcomp files
-        push(@line, basename($markerlist_tsv), $linkage_group);
+        push(@line, $specieslabel, $linkage_group);
         push(@line, $markerlist_hash{$marker}{'female_pos'}, "0", $markerlist_hash{$marker}{'marker_id'}, $markerlist_hash{$marker}{'sequence'});
         print OUT join(",", @line) . "\n";
         }

@@ -33,7 +33,7 @@ my @arguments = @ARGV; #save arguments as a precaution
 
 ### The get options block
 
-my ($help, $markerlist_tsv, $catalog_fasta_gz, $outpath, $discard_below);
+my ($help, $markerlist_tsv, $catalog_fasta_gz, $outpath, $discard_below, $specieslabel);
 
 #Let's be friendly
 sub Usage {
@@ -58,7 +58,7 @@ print "Optional parameters:
   exit;
 }
 
-GetOptions('h|help' => \$help, 'd|discard:i' => \$discard_below, 'm|markerlist=s' => \$markerlist_tsv, 'c|catalog=s' => \$catalog_fasta_gz, 'o|outpath:s' => \$outpath) or die ("Arguments in error!\n");
+GetOptions('h|help' => \$help, 'd|discard:i' => \$discard_below, 'm|markerlist=s' => \$markerlist_tsv, 'c|catalog=s' => \$catalog_fasta_gz, 'o|outpath:s' => \$outpath, 'l|label:s' => \$specieslabel) or die ("Arguments in error!\n");
 Usage() if (@arguments == 0 || $help || not ($markerlist_tsv) || not ($catalog_fasta_gz));
 
 $discard_below = 10 if not ($discard_below); # set default to 10 if not provided
@@ -106,6 +106,21 @@ else {
 print "Output filename(s): $outfilebasename + extension \n";
 
 print "disregarding stacks with less than $discard_below sample hits in catalog\n";
+
+
+sub get_specieslabel {
+    print "\n\nMapcomp files have a \"SpeciesName\" identifier field. What do you want to use ?\n";
+    print "Do not use commas and avoid spaces or other special characters.\n";
+    print "Unless you enter something <" . basename($markerlist_tsv) . "> will be used.\n";
+    print "Enter a name: ";
+    $specieslabel = <STDIN>;
+    chomp($specieslabel);
+    $specieslabel ||= $strippedbasename;
+}
+
+unless (defined($specieslabel)) { get_specieslabel() };
+
+
 
 #   ## begin by figuring out what type of catalog we are dealing with
 #   my $firstline =  `zcat $catalog_fasta_gz | head -n 1` or die "can't find the file";
@@ -347,7 +362,7 @@ sub write_mapcomp_file {
     foreach my $marker (@markerorder) {
         my @line= ();    #clear preceding line
         (my $linkage_group = $markerlist_hash{$marker}{'CHR'}) =~ s/LG// ;  #strip LG from linkage group as in mapcomp files
-        push(@line, basename($markerlist_tsv), $linkage_group);   #TODO fix this like in the genome extractor.
+        push(@line, $specieslabel, $linkage_group);   
         push(@line, $markerlist_hash{$marker}{'female_pos'}, "0", $markerlist_hash{$marker}{'marker_id'}, $markerlist_hash{$marker}{'sequence'});
         print OUT join(",", @line) . "\n";
         }

@@ -37,13 +37,14 @@ CHROMODIR="${LMRUNDIR}08_analyze_maps/05_prepare_chromonomer/"
 mkdir -p $MAPCOMPDIR
 mkdir -p $CHROMODIR
 
-#this is a short pipeline in itself (lifted from github: clairemerot/lepmap3_pipeline with minor modifications)
+#this is lifted from github: clairemerot/lepmap3_pipeline with some minor modifications
 #first use R to format the map into en entry file for the .py that extracts a sequence around a given position
-#then run the .py to extract the sequence,
-#then use R to format for mapcomp and chromonomer
+#then run the .py scripts to extract the sequence,
+#then use R to format for mapcomp or chromonomer
+#there are slight differences between the two python scripts so they must be run twice.
 
-### TODO This could be done much more quickly and easily with samtoos faidx [genome.fa] [chromosome:from-to]
-### and a bit of perl, but it works so leave it for now.
+#This can be replaced by some perl and samtools and should be much faster and more efficient.
+
 
 ls $INDIR | while read i
 	do 

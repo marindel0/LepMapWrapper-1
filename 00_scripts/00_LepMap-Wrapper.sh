@@ -171,7 +171,7 @@ function Filtering {
     echo "MAF limit for loci: $MAF"
     echo
     #D="dataTolerance=0.001" #use a lower tolerance when running on several families
-    read -p "Enter dataTolerance for filtering - default for single family crosses [0.0001]: " D
+    read -p "Enter dataTolerance (P-value limit for segregation distortion) - default [0.0001]: " D
     D=${D:-0.0001}
     echo "dataTolerance=$D"
     echo
@@ -231,6 +231,36 @@ function SetSIZEL {
     echo "SIZEL cutoff set to $SIZEL"
 }
 
+function SetMoreOptions {
+    printf "\n%s\n" "SeparateChromosomes2 accepts some additional options not set by default.  You can add them"
+    printf "\n%s\n" "manually at the prompt:"
+    cat <<ENDOFCOMMENT
+options:
+         informativeMask=STR     Use only markers with informative father (1), mother(2), both parents(3) or neither parent(0) [0123]
+         theta=NUM          Fixed recombination fraction [0.03]
+         (fe)maleTheta=NUM  Fixed recombination fraction separately for both sex [theta]
+         subsample=NUM      Use only a random NUM fraction of markers [1] (speedup is 1/NUM^2)
+         samplePairs=NUM    Use only a random NUM fraction of marker pairs [1] (speedup is 1/NUM)
+         phasedData=1       Data is phased [not set]
+         grandparentPhase=1 Phase data based on grandparents [not set]
+         lod3Mode=NUM       Controls how LOD scores are computed between double informative markers [1]
+                            1: haplotypes match (4 alleles, max LOD = log(4^n)
+                            2: homozygotes match (3 alleles, max LOD = log(3^n))
+                            3: homozygotes or heterozygotes match (2 alleles, max LOD = log(2^n))
+         distortionLod=1    Use segregation distortion aware LOD scores [not set]
+         
+ENDOFCOMMENT
+    printf "\n%s\n" "Current t setting: $MOREOPTIONS "
+    printf "\n%s\n" "Empty line preserves current setting - enter \"clear\" to clear parameterrs."
+    read -p "Enter the extra parameters, separated by space: "
+    MOREOPTIONS=${REPLY:-$MOREOPTIONS}
+    LOWOPT=$( tr '[:upper:]' '[:lower:]' <<<"$MOREOPTIONS" )
+    case $LOWOPT in
+        clear)  echo "clearing options" ; MOREOPTIONS="" ;;
+        *) echo "Extra options for SeparateChromosomes2: $MOREOPTIONS" ;;
+    esac
+}
+
 function OptimizeLod {
     printf "\nStep 5a: SeparateChromosomes - Optimize LOD \n"
     echo
@@ -258,7 +288,7 @@ function OptimizeLod {
        echo -n "LOD $LODv "
        printf "LOD $LODv " >> $LOD_LOG
        #java -cp /usr/local/bin/lepmap3 SeparateChromosomes2 data=input_f.call lodLimit="${I}" sizeLimit=10 
-       zcat $FILT_FILE | java -cp $LEPMAPDIR SeparateChromosomes2 data=- lodLimit=$LODv numThreads=$CPU sizeLimit=$SIZEL >/dev/null 2>>$LOD_LOG
+       zcat $FILT_FILE | java -cp $LEPMAPDIR SeparateChromosomes2 data=- lodLimit=$LODv numThreads=$CPU sizeLimit=$SIZEL $MOREOPTIONS>/dev/null 2>>$LOD_LOG
     done
     echo
     #grep "Number of LGs" $LOD_LOG >$LOD_LOG.text
@@ -290,7 +320,7 @@ function OptimizeSizel {
        echo -n "SIZEL $SIZELv "
        printf "SIZEL $SIZELv " >> $SIZEL_LOG
        #java -cp /usr/local/bin/lepmap3 SeparateChromosomes2 data=input_f.call lodLimit="${I}" sizeLimit=10 
-       zcat $FILT_FILE | java -cp $LEPMAPDIR SeparateChromosomes2 data=- lodLimit=$LOD numThreads=$CPU sizeLimit=$SIZELv >/dev/null 2>>$SIZEL_LOG
+       zcat $FILT_FILE | java -cp $LEPMAPDIR SeparateChromosomes2 data=- lodLimit=$LOD numThreads=$CPU sizeLimit=$SIZELv $MOREOPTIONS>/dev/null 2>>$SIZEL_LOG
     done
     echo
     #grep "Number of LGs" $SIZEL_LOG >$SIZEL_LOG.text
@@ -300,15 +330,17 @@ function OptimizeSizel {
 }
 
 while true; do
-    printf "\n%s\n" "It is important to find the correct Lod cutoff and number of loci required to call a LG (Sizel)"
+    printf "\n%s\n" "It is important to find the correct Lod cutoff and minumum number of loci required to call a LG (Sizel)"
     printf "%s\n" "You can run iterations of either while keeping the other constant to select the best combination"
-    printf "%s\n\n" "I will keep asking until you answer No"
-    read -p "Do you want to optimize Lod or Sizel or Neither ? (l/s/n): " LSn
+    printf "%s\n" "You also have the option to enter some optional parameters to use in the analysis"
+    printf "%s\n\n" "I will keep asking until you are Done"
+    read -p "Do you want to optimize Lod or Sizel, set or Modify optional parameters or are we Done ? (l/s/m/d): " LSn
     case $LSn in
         [Ll]* ) OptimizeLod;;
         [Ss]* ) OptimizeSizel;;
-        [Nn]* ) SetLOD; SetSIZEL; break;;
-        * ) echo "Please answer L(od) S(izel) or N(o).";;
+        [Mm]* ) SetMoreOptions;;
+        [Dd]* ) SetLOD; SetSIZEL; break;;
+        * ) echo "Please answer L(od) S(izel) M(odify) or D(one).";;
     esac
 done
 
@@ -317,11 +349,13 @@ echo "Optimizations done"
     printf "\n%s\n" "Parameters for SeparateChromosomes2"
     printf "%-25s %s\n" "Selected LOD: " $LOD
     printf "%-25s %s\n" "Selected SIZEL: " $SIZEL
+    printf "%-25s %s\n" "Optional params: " $MOREOPTIONS
 }>>$LOGFILE
 
 function SeparateChromosomes {
     printf "\nStep 5c: Run SeparateChromosomes - Generate output files \n"
-    echo "LOD set to $LOD and SIZEL set to $SIZEL"
+    printf "LOD set to $LOD and SIZEL set to $SIZEL\n"
+    printf "Additional parameters: $MOREOPTIONS \n"
     
     MAP_FILE="${OUTDIR}/05_map_chromosomes/map_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_Sizel-"$SIZEL".txt"
     REP_FILE="${OUTDIR}/05_map_chromosomes/map_"$CORENAME"_Miss-"$MISS"_Lod-"$LOD"_Sizel-"$SIZEL".repartition"
@@ -330,7 +364,7 @@ function SeparateChromosomes {
     #RECOMB_1="maleTheta=0" # for species with non-recoùmbining male adjust recombination rate to 0
     #RECOMB_2="femaleTheta=0.03" # 
     #zcat $IN_FILE | java -cp bin/ SeparateChromosomes2 data=- lodLimit=$LOD numThreads=$CPU sizeLimit=$SIZEL $RECOMB_1 $RECOMB_2 > $OUT_FILE
-    zcat $FILT_FILE | java -cp $LEPMAPDIR SeparateChromosomes2 data=- lodLimit=$LOD numThreads=$CPU sizeLimit=$SIZEL > $MAP_FILE
+    zcat $FILT_FILE | java -cp $LEPMAPDIR SeparateChromosomes2 data=- lodLimit=$LOD numThreads=$CPU sizeLimit=$SIZEL $MOREOPTIONS> $MAP_FILE
 
     #evaluate chromosome repartition 
     #typically if there is just one big chromosome -> raise LOD
@@ -560,6 +594,16 @@ function Fmt_Mpcmp_and_Chrmnmr {
     done
 }
 
+function get_specieslabel {
+    printf "\n\nMapcomp files have a \"SpeciesName\" identifier field. What do you want to use ?\n"
+    printf "Do not use commas and avoid spaces or other special characters.\n"
+    printf "Unless you enter something < $OUTFILEBASENAME > will be used.\n"
+    read -p "Please enter the name you want as a label: " SPECIESLABEL
+    SPECIESLABEL=${SPECIESLABEL:-$OUTFILEBASENAME}
+}
+
+
+
 function samtools_genome_extractor {
 
     MAPDIR="${OUTDIR}/08_analyze_maps/01_maps/"
@@ -590,9 +634,9 @@ function samtools_genome_extractor {
     ls $MAPDIR | while read i
     do 
          echo "Infile: $i"
-         printf "command: perl ../LepMapWrapper/00_scripts/01b_genome_extractor.pl -m ${MAPDIR}${i} -g $GENOME -o $SEQOUTDIR\n"
+         printf "command: perl ../LepMapWrapper/00_scripts/01b_genome_extractor.pl -m ${MAPDIR}${i} -g $GENOME -o $SEQOUTDIR -l $SPECIESLABEL\n"
          printf "\n"
-         (perl ./00_scripts/01b_genome_extractor.pl -m ${MAPDIR}${i} -g $GENOME -o $SEQOUTDIR </dev/tty)
+         (perl ./00_scripts/01b_genome_extractor.pl -m ${MAPDIR}${i} -g $GENOME -o $SEQOUTDIR -l $SPECIESLABEL </dev/tty)
          echo "returned from perl"
     done
 }
@@ -633,21 +677,21 @@ function catalog_extractor {
         fi
     done
     
-    NINETYFIVE=$((NUM_SAMPLES*95/100))
-    printf "\nDiscarding low coverage stacks from the catalog will seriously speed up things.\n"
-    printf "A sample number close to 95% of the number of individuals in family is recommended."
-    read -p "Enter minimal samplenumber threshold - suggested [$NINETYFIVE]: " DISCARD
+    THREEFOURTHS=$((NUM_SAMPLES*3/4))
+    printf "\nDiscarding low coverage stacks from the catalog will significantly speed up things.\n"
+    printf "A sample number less than 75 percent of the number of individuals in family is recommended.\n"
+    read -p "Enter minimal samplenumber threshold - suggested [$THREEFOURTHS]: " DISCARD
     DISCARD=${DISCARD:-$NINETYFIVE}
     
     ls $MAPDIR | while read i
     do 
          echo "Infile: $i"
          if [[ $catalogtype =~ "reference_aligned" ]]; then
-            printf "command:  perl ./00_scripts/02_catalog_extractor.pl -d $DISCARD -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR \n"
-            (perl ./00_scripts/02_catalog_extractor.pl -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR -d $DISCARD </dev/tty)
+            printf "command:  perl ./00_scripts/02_catalog_extractor.pl -d $DISCARD -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR -l $SPECIESLABEL\n"
+            (perl ./00_scripts/02_catalog_extractor.pl -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR -d $DISCARD -l $SPECIESLABEL </dev/tty)
          elif [[ $catalogtype =~ "denovo" ]]; then
-            printf "command:  perl ./00_scripts/02b_denovo_catalog_extractor.pl -d $DISCARD -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR \n"
-            (perl ./00_scripts/02b_denovo_catalog_extractor.pl -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR -d $DISCARD </dev/tty)            
+            printf "command:  perl ./00_scripts/02b_denovo_catalog_extractor.pl -d $DISCARD -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR -l $SPECIESLABEL\n"
+            (perl ./00_scripts/02b_denovo_catalog_extractor.pl -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR -d $DISCARD -l $SPECIESLABEL </dev/tty)            
          fi
          echo "catalog extracted"
     done
@@ -661,7 +705,7 @@ function Ask_old_or_new {
         read -p "Old style or New or Quit ? (o/n/q) : " OldOrNew
         case $OldOrNew in
             [Oo]* ) Fmt_Mpcmp_and_Chrmnmr ; break;;
-            [Nn]* ) samtools_genome_extractor ; break;;
+            [Nn]* ) get_specieslabel; samtools_genome_extractor ; break;;
             [Qq]* ) break;;
             * ) echo "Please answer G(enome) S(tacks) or Q(uit).";;
         esac
@@ -678,7 +722,7 @@ while true; do
     read -p "Use Genome or Stacks catalog or just call it Quits ? (g/s/q) : " GSQ
     case $GSQ in
         [Gg]* ) Ask_old_or_new ; break;;
-        [Ss]* ) catalog_extractor ; break;;
+        [Ss]* ) get_specieslabel; catalog_extractor ; break;;
         [Qq]* ) break;;
         * ) echo "Please answer G(enome) S(tacks) or Q(uit).";;
     esac
@@ -689,11 +733,11 @@ while true; do
     printf "%s\n\n" "Same options as before. Genome (old / new scripts) or Stacks catalog"
     read -p "Extract regions from genome using 'New' or 'Old' or 'Stacks catalog' or Quit ? (n/o/s/q) : " GSQagain
     case $GSQagain in
-        [Nn]* ) samtools_genome_extractor ;;
+        [Nn]* ) get_specieslabel; samtools_genome_extractor ;;
         [Oo]* ) Fmt_Mpcmp_and_Chrmnmr ;;
-        [Ss]* ) catalog_extractor ;;
-        [Qq]* ) break;;
-        * ) echo "Please answer G(enome) S(tacks) or Q(uit).";;
+        [Ss]* ) get_specieslabel; catalog_extractor ;;
+        [Qq]* ) break ;;
+        * ) echo "Please answer G(enome) S(tacks) or Q(uit)." ;;
     esac
 done
     
