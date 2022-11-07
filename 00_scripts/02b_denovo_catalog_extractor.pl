@@ -1,4 +1,4 @@
-#! /usr/bin/perl 
+#!/usr/bin/perl 
 
 use warnings;
 use strict;
@@ -121,22 +121,6 @@ sub get_specieslabel {
 unless (defined($specieslabel)) { get_specieslabel() };
 
 
-
-#   ## begin by figuring out what type of catalog we are dealing with
-#   my $firstline =  `zcat $catalog_fasta_gz | head -n 1` or die "can't find the file";
-#   print "First line of catalog file: $firstline  => ";
-#   
-#   my $catalogtype = "denovo" if ( $firstline =~ m/^>\d+\sNS=\d+\s\S+.$/);
-#   $catalogtype = "reference_aligned" if ( $firstline =~ m/^>\d+\spos=\S+\sNS=\d+$/);
-#   $catalogtype = "undefined" unless defined($catalogtype);
-#   #should turn this into a case statement but this works.
-#   
-#   print "Catalog_type detected as: $catalogtype\n\n";
-#   
-#   die "This won't work -> play with the source code or talk to the doctor and ask for a new pattern !\n" if ($catalogtype = "undefined");
-
-
-
 #########################################################################################################
 # Parse the markerlist from LepMap3 and stuff it into a hash
 # 
@@ -246,7 +230,6 @@ sub read_fasta_file {
             elsif ( $line !~ /^\s*$/ and not $discard ){
             $catalog_hash{$marker_ID}{'sequence'} .= $line;
             }
-#die if ($stack_counter > 5);
         }      
     
     
@@ -255,6 +238,32 @@ sub read_fasta_file {
     print "Discarded $discard_counter and kept " . ($stack_counter - $discard_counter) . " out of $stack_counter stacks in catalog file.\n";
 }
 read_fasta_file();  #No need to be fancy and pass reference to catalog_hash (maybe later if this script grows)
+
+sub split_reads {
+    print "Splitting gstacks into fw and rev reads\n";
+    foreach my $stack_key ( keys %catalog_hash ) {   #We could do this for only the markerlist hash keys and save some time but this is more flexible
+        if ($catalog_hash{$stack_key}{'sequence'} =~ m/^([atgcATGC]*)NNN*([atgcATGC]*)$/ ) {
+            $catalog_hash{$stack_key}{'read1'}=$1;
+            my $read2 = reverse($2);
+            $read2 =~ tr /acgtACGT/tgcaTGCA/;
+            $catalog_hash{$stack_key}{'read2'}=$read2 ;
+        }
+        else {
+            my $seq = $catalog_hash{$stack_key}{'sequence'};
+            my $halflenght = int((length($seq)/2));
+            my($read1, $read2) = ($seq =~ /(.{1,$halflenght})/g);
+            $read2 =~ tr /acgtACGT/tgcaTGCA/ ;
+            $catalog_hash{$stack_key}{'read1'}=$read1;
+            $catalog_hash{$stack_key}{'read2'}= reverse($read2);
+        }
+       # print $stack_key.": seq   :  ". $catalog_hash{$stack_key}{'sequence'} . "\n";
+       # print $stack_key.": read 1:  ". $catalog_hash{$stack_key}{'read1'} . "\n";
+       # print $stack_key.": read 2:  ". $catalog_hash{$stack_key}{'read2'} . "\n";
+    }
+}
+
+split_reads();
+
 
 my ($matches, $misses) = (0,0);
 
@@ -377,20 +386,51 @@ sub write_fasta_file {
         die "Can't write to $filename $!";
     }
     foreach my $marker (@markerorder) {
-        my $defline = ">". $markerlist_hash{$marker}{'CHR'} . ":" ;
+        my $defline = ">" . $markerlist_hash{$marker}{'line_number'} . ":" ;
+        $defline .= "LG=" . $markerlist_hash{$marker}{'CHR'} . ":" ;
         $defline .= "female_pos=" . $markerlist_hash{$marker}{'female_pos'} . ":" ;
         $defline .= "marker=" . $markerlist_hash{$marker}{'marker_id'} . ":" ;
         $defline .= "contig=" . $markerlist_hash{$marker}{'contig'} . ":" ;
-        $defline .= $markerlist_hash{$marker}{'pos'} . "\n";
+        $defline .= "pos=" . $markerlist_hash{$marker}{'pos'} . "\n";
         print OUT $defline;
         my $seq = $markerlist_hash{$marker}{'sequence'};
         $seq =~ s/(.{0,80})/$1\n/g;
         chomp($seq);
         print OUT $seq;
     }
+    print "wrote fasta file\n";
 }
 
 write_fasta_file();
+
+sub write_split_fastas {
+    foreach my $N (1,2) {
+        my $read = "read$N";
+        print "Read $read\n" ;
+        my $filename = "$outpath/split_stacks_from_$outfilebasename.R$N.fa";
+        my @markerorder = sort_markers_by_line(%markerlist_hash);
+        unless (open (OUT, ">$filename")){
+            die "Can't write to $filename $!";
+        }
+        foreach my $marker (@markerorder) {    #Forward and reverse reads must have the same name or bwa refuses them.
+            my $defline = ">" . $markerlist_hash{$marker}{'line_number'} . ":" ;
+            $defline .= "marker=" . $markerlist_hash{$marker}{'marker_id'} . ":" ;
+            $defline .= "LG=" . $markerlist_hash{$marker}{'CHR'} . ":" ;
+            $defline .= "female_pos=" . $markerlist_hash{$marker}{'female_pos'} . ":" ;
+            $defline .= "contig=" . $markerlist_hash{$marker}{'contig'} . ":" ;
+            $defline .= "pos=" . $markerlist_hash{$marker}{'pos'} . "\n";        
+            print OUT $defline;
+            #print "This is it ". $catalog_hash{$marker}{$read} . "\n";
+            my $seq = $catalog_hash{$marker}{$read};
+            $seq =~ s/(.{0,80})/$1\n/g;
+            chomp($seq);
+            print OUT $seq;
+        }
+    }
+    print "wrote split fasta files\n";
+}
+
+write_split_fastas();
 
 #write_mapcomp_format_markerlist();
 print "\nDone!\n\n";

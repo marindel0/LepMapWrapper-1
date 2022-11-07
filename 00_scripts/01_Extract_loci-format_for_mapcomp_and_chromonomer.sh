@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 
 printf "\nRunning an assembly of R and python scripts to make some potentially useful files \n" 
 

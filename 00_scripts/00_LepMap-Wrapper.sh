@@ -1,6 +1,6 @@
-#!/usr/bin/bash
+#!/bin/bash
 
-### Zophonías O. Jónsson - zjons@hi.is - 15.Oct.2022
+### Zophonías O. Jónsson - zjons@hi.is - Oct.2022
 ### Unsing ideas and code from github: clairemerot/lepmap3_pipeline 
 RUN_STARTS=$(date '+%y%m%d@%H%M')
 
