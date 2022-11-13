@@ -391,11 +391,12 @@ sub write_fasta_file {
         die "Can't write to $filename $!";
     }
     foreach my $marker (@markerorder) {
-        my $defline = ">". $markerlist_hash{$marker}{'CHR'} . ":" ;
+        my $defline = ">" . $markerlist_hash{$marker}{'line_number'} . ":" ;
+        $defline .= "LG=" . $markerlist_hash{$marker}{'CHR'} . ":" ;
         $defline .= "female_pos=" . $markerlist_hash{$marker}{'female_pos'} . ":" ;
         $defline .= "marker=" . $markerlist_hash{$marker}{'marker_id'} . ":" ;
         $defline .= "contig=" . $markerlist_hash{$marker}{'contig'} . ":" ;
-        $defline .= $markerlist_hash{$marker}{'pos'} . "\n";
+        $defline .= "pos=" . $markerlist_hash{$marker}{'pos'} . "\n";
         print OUT $defline;
         my $seq = $markerlist_hash{$marker}{'sequence'};
         $seq =~ s/(.{0,80})/$1\n/g;

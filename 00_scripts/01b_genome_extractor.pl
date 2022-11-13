@@ -294,8 +294,10 @@ sub write_fasta_file {
     unless (open (OUT, ">$filename")){
         die "Can't write to $filename $!";
     }
+    
     foreach my $marker (@markerorder) {
-        my $defline = ">". $markerlist_hash{$marker}{'CHR'} . ":" ;
+        my $defline = ">" . $markerlist_hash{$marker}{'line_number'} . ":" ;
+        $defline .= "LG=". $markerlist_hash{$marker}{'CHR'} . ":" ;
         $defline .= "female_pos=" . $markerlist_hash{$marker}{'female_pos'} . ":" ;
         $defline .= "marker=" . $markerlist_hash{$marker}{'marker_id'} . ":" ;
         $defline .= "region=" . $markerlist_hash{$marker}{'fasta_defline'} . ":" ;
