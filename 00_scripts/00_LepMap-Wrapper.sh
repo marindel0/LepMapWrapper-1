@@ -4,7 +4,10 @@
 ### Unsing ideas and code from github: clairemerot/lepmap3_pipeline 
 RUN_STARTS=$(date '+%y%m%d@%H%M')
 
+SCRIP_DIR=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
+
 printf "\nLepMapWrapper: The unified pipeline script for running LepMap3 - starting at ${RUN_STARTS} \n" 
+printf "LepMapWrapper script dir: $SCRIP_DIR"
 
 
 ### Make sure input files are passed as parameters
@@ -25,7 +28,7 @@ fi
 if [ -f "$PEDIGREE" ]; then
     printf "$PEDIGREE exists.\n"
     NUM_SAMPLES=$(($(awk -F'\t' '{print NF; exit}' $PEDIGREE)-2))
-    printf "$NUM_SAMPLES in pedigree fil\n"
+    printf "$NUM_SAMPLES in pedigree file."
 else 
     echo "file $PEDIGREE does not exist. Please try again!"
     exit 1
@@ -61,6 +64,7 @@ echo "logfile (parameters): ${LOGFILE}"
     printf "%-25s %s\n" "Parameter 1 (VCF file): " $INPUT
     printf "%-25s %s\n" "Parameter 2 (Pedigree): " $PEDIGREE
     printf "%-25s %s\n" "Working directory: " $(pwd)
+    printf "%-25s %s\n" "LepMapWrapper script directory: " $SCRIP_DIR
     printf "%-25s %s\n" "Full path to VCF file: " $(dirname $(readlink -f $INPUT))
     printf "%-25s %s\n" "Basename of VCF file: " $BASENAME
     printf "%-25s %s" "Corename of VCF file: " $CORENAME
@@ -179,8 +183,8 @@ function Filtering {
     #compulsory (file names)
     #IN_FILE="03_parent_call_data/data_call_"$MIN_COV"_"$i".gz" -- just use the CALL_FILE
     FILT_FILE="${OUTDIR}/04_filtering/data_f_"$CORENAME"_Miss-"$MISS".gz"
-    CONTIG_FILE="${OUTDIR}/04_filtering/contig_"$CORENAME"_Miss-"$MISS".txt"
-    POS_FILE="${OUTDIR}/04_filtering/pos_"$CORENAME"_Miss-"$MISS".txt"
+    #CONTIG_FILE="${OUTDIR}/04_filtering/contig_"$CORENAME"_Miss-"$MISS".txt"
+    #POS_FILE="${OUTDIR}/04_filtering/pos_"$CORENAME"_Miss-"$MISS".txt"
     MARKERLIST_FILE="${OUTDIR}/04_filtering/data_f_"$CORENAME"_Miss-"$MISS".markerlist"
     #make sure the diectory exists
     mkdir -p "${OUTDIR}/04_filtering"
@@ -190,11 +194,15 @@ function Filtering {
     #zcat ParentCall2_05.out.gz |java -cp /programs/LepMap3/bin/ Filtering2 data=- removeNonInformative=1 missingLimit=0.7 MAFLimit=0.05 dataTolerance=0.0001 |gzip >2_filtered_05.out.gz
 
     #extract the marker list
-    echo "extracting the markerlist and formating it in R"
-    zcat $FILT_FILE | awk '{print $1}' > $CONTIG_FILE
-    zcat $FILT_FILE | awk '{print $2}' > $POS_FILE
-    Rscript 00_scripts/Rscripts/4b_make_markerlizt.R "$CONTIG_FILE" "$POS_FILE" "$MARKERLIST_FILE" "$FAMILY"
-    #done
+    echo "extracting and formatting the markerlist "
+    ### THE CONTIG_FILE and POSE_FILE are not used for anything - skip creating them
+    #zcat $FILT_FILE | awk '{print $1}' > $CONTIG_FILE
+    #zcat $FILT_FILE | awk '{print $2}' > $POS_FILE
+    #Rscript 00_scripts/Rscripts/4b_make_markerlizt.R "$CONTIG_FILE" "$POS_FILE" "$MARKERLIST_FILE" "$FAMILY"
+    zcat $FILT_FILE | awk 'BEGIN { line=0; print "marker_id contig pos contig_pos"} !/#java|CHR/ { line++; print line, $1, $2, $1"_"$2}' > $MARKERLIST_FILE
+    NUMBR=$(expr $(wc -l < $MARKERLIST_FILE) - 1)
+    printf "\n%s\n" "After filtering, there are $NUMBR markers in the family $FAMILY"
+    
     echo "Done filtering "
 }
 Filtering
@@ -204,8 +212,8 @@ Filtering
     printf "%-25s %s\n" "MAF limit:" $MAF    
     printf "%-25s %s\n" "Data tolerance:" $D    
     printf "%-25s %s\n" "Filtering2 output:" $FILT_FILE 
-    printf "%-25s %s\n" "Contig file:" $CONTIG_FILE
-    printf "%-25s %s\n" "Position file:" $POS_FILE
+    #printf "%-25s %s\n" "Contig file:" $CONTIG_FILE
+    #printf "%-25s %s\n" "Position file:" $POS_FILE
     printf "%-25s %s\n" "Markerlist file:" $MARKERLIST_FILE
 }>>$LOGFILE
 
@@ -537,7 +545,7 @@ function match_markers_and_plot {
     #it makes the map more easily explorable, and correspondance with the genome used to align the markers
     #last step also outputs a plot with the female position which allow looking at the repartition of markers along each LG
 
-    Rscript 00_scripts/Rscripts/8_match_marker_map_fx.R $MARKERLIST_FILE $NB_CHR $REFINE_STEPS $ORDERFILES $OUTFILEBASENAME $OUTDIRBASE
+    Rscript $SCRIP_DIR/Rscripts/8_match_marker_map_fx.R $MARKERLIST_FILE $NB_CHR $REFINE_STEPS $ORDERFILES $OUTFILEBASENAME $OUTDIRBASE
 
 }
 match_markers_and_plot
@@ -564,8 +572,8 @@ function Fmt_Mpcmp_and_Chrmnmr {
     function Get_genome_and_run {
         read -e -p "Enter the path to the indexed genome.fasta file (can be bgzipped): " GENOME
 
-        printf "command:  bash ./00_scripts/01_Extract_loci-format_for_mapcomp_and_chromonomer.sh $GENOME $OUTDIR\n"
-        bash ./00_scripts/01_Extract_loci-format_for_mapcomp_and_chromonomer.sh $GENOME $OUTDIR
+        printf "command:  bash $SCRIP_DIR/01_Extract_loci-format_for_mapcomp_and_chromonomer.sh $GENOME $OUTDIR\n"
+        bash $SCRIP_DIR/01_Extract_loci-format_for_mapcomp_and_chromonomer.sh $GENOME $OUTDIR
         
         if [[ $? = 0 ]] ; then
             DONE=1
@@ -634,9 +642,9 @@ function samtools_genome_extractor {
     ls $MAPDIR | while read i
     do 
          echo "Infile: $i"
-         printf "command: perl ../LepMapWrapper/00_scripts/01b_genome_extractor.pl -m ${MAPDIR}${i} -g $GENOME -o $SEQOUTDIR -l $SPECIESLABEL\n"
+         printf "command: perl $SCRIP_DIR/01b_genome_extractor.pl -m ${MAPDIR}${i} -g $GENOME -o $SEQOUTDIR -l $SPECIESLABEL\n"
          printf "\n"
-         (perl ./00_scripts/01b_genome_extractor.pl -m ${MAPDIR}${i} -g $GENOME -o $SEQOUTDIR -l $SPECIESLABEL </dev/tty)
+         (perl $SCRIP_DIR/01b_genome_extractor.pl -m ${MAPDIR}${i} -g $GENOME -o $SEQOUTDIR -l $SPECIESLABEL </dev/tty)
          echo "returned from perl"
     done
 }
@@ -687,11 +695,11 @@ function catalog_extractor {
     do 
          echo "Infile: $i"
          if [[ $catalogtype =~ "reference_aligned" ]]; then
-            printf "command:  perl ./00_scripts/02_catalog_extractor.pl -d $DISCARD -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR -l $SPECIESLABEL\n"
-            (perl ./00_scripts/02_catalog_extractor.pl -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR -d $DISCARD -l $SPECIESLABEL </dev/tty)
+            printf "command:  perl $SCRIP_DIR/02_catalog_extractor.pl -d $DISCARD -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR -l $SPECIESLABEL\n"
+            (perl $SCRIP_DIR/02_catalog_extractor.pl -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR -d $DISCARD -l $SPECIESLABEL </dev/tty)
          elif [[ $catalogtype =~ "denovo" ]]; then
-            printf "command:  perl ./00_scripts/02b_denovo_catalog_extractor.pl -d $DISCARD -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR -l $SPECIESLABEL\n"
-            (perl ./00_scripts/02b_denovo_catalog_extractor.pl -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR -d $DISCARD -l $SPECIESLABEL </dev/tty)            
+            printf "command:  perl $SCRIP_DIR/02b_denovo_catalog_extractor.pl -d $DISCARD -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR -l $SPECIESLABEL\n"
+            (perl $SCRIP_DIR/02b_denovo_catalog_extractor.pl -m ${MAPDIR}${i} -c $CATALOG -o $SEQOUTDIR -d $DISCARD -l $SPECIESLABEL </dev/tty)            
          fi
          echo "catalog extracted"
     done

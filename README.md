@@ -4,7 +4,7 @@ Intended to ease the learning curve with linkage analysis using LepMap3
 Basesd on (and borrowing heavily from) the [clairemerot/lepmap3_pipeline](https://github.com/clairemerot/lepmap3_pipeline) on github
 
 ## Introduction
-There is a lot of valuable information in the [LepMap3 wiki](https://sourceforge.net/p/lep-map3/wiki/LM3%20Home/) 
+There is a lot of valuable information in the [LepMap3 wiki](https://sourceforge.net/p/lep-map3/wiki/LM3%20Home/)
 but there is a considerable learning curve in order to get things to work.
 This wrapper tries to lead you through the process in an interactive manner and generates a whole
 slew of output organized by timestamps so analyses can be repeated and compared, in a convenient way.
@@ -34,7 +34,9 @@ The "master script" should now lead you through the rest. You might have to make
 ## Dependencies
 - [LepMap3](https://sourceforge.net/projects/lep-map3/) (obviously) and a working java runtime environment
 - Linux or MacOS
-- Perl 5+ / Python 2.7 / and R > v4 
+- Perl 5+
+- Python 2.7 (not strictly required)
+- R > v4 (with the dplyr package installed)
 - Samtools (a recent release)
 
 Besides, vcftools are convenient for pre-filtering if following this guide.
@@ -91,7 +93,7 @@ The vcf file can also be used the same way skipping the zcat step.
 
 ### The vcf file
 Stacks populations can output VCFv4.2 format files that are convenient as input. It is probably best to do relatively loose
-filtering in populations and then use vcftools to filter rather aggressively.  It is most convenient to * *write single snp* * 
+filtering in populations and then use vcftools to filter rather aggressively.  It is most convenient to * *write single snp* *
 in Stacks. We only want high coverage loci.
 Here is an example of a pre-filtering step:
 ```console
@@ -125,4 +127,3 @@ This list can then be used to filter the vcf like so.
 > vcftools --vcf AdamsFam_filtered.vcf --recode $(cat chr-contiglist.txt) --out AdamsFam_filt_scaffolds.vcf
 ```
 ### Other ways to generate input files
-
