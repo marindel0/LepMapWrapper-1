@@ -104,7 +104,7 @@ get_cpu_count
 
 
 ### Make sure that LepMap3 is present and accessible
-read -p "Where is LepMap3 located? - default [/programs/LepMap3/bin/]: " LEPMAPDIR
+read -e -p "Where is LepMap3 located? - default [/programs/LepMap3/bin/]: " LEPMAPDIR
 LEPMAPDIR=${LEPMAPDIR:-/programs/LepMap3/bin/}
 if [ -f "$LEPMAPDIR/ParentCall2.class" ]; then
     printf "Lepmap found - all is good \n"
