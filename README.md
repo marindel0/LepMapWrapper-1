@@ -128,3 +128,36 @@ This list can then be used to filter the vcf like so.
 > vcftools --vcf AdamsFam_filtered.vcf --recode $(cat chr-contiglist.txt) --out AdamsFam_filt_scaffolds.vcf
 ```
 ### Other ways to generate input files
+
+Another way to prepare input data for LepMap3 and, if I understand the paper correctly, the preferred way is to parse reference aligned bam files
+directly into posterior probabilities.  The clairmerot/lepmap3 pipeline instructions refer to using the awk scripts pileupParser2.awk and pileup2posterior.awk
+from LepMap3 like this.
+```console
+> samtools mpileup -q 10 -Q 10 -s $(cat sorted_bams.txt)|awk -f pileupParser2.awk|awk -f pileup2posterior.awk|gzip >all_fam_post.gz
+```
+where `sorted_bams.txt` is a list of the sorted bam files to be used as input. The directory where the pipe is run must also contain a list of sample names
+under the name `mapping.txt`.  Running those scripts for a large number of samples can take a while and according to the LepMap3 wiki have been replaced by a java
+class `Pileup2Likelihoods`. The old scripts seem to have been removed although the wiki still refers to them but the have been repurposed in another git repo 
+[icruz1989/IBDcalculation](https://github.com/icruz1989/IBDcalculation).
+
+Here are some shortcuts to getting this done.  I am assuming that there is one bam file per sample and that they are named by sample name.  This is not absolutely required but I won't get into that here.  See the LepMap3 wiki.
+
+* First sort the reference-aligned bam files
+```console
+> mkdir path_for_sorted_bams
+> for file in path_to_bams/*.bam; do samtools sort -@ 30 $file > path_for_sorted_bams/$(basename ${file%\.bam}_sorted.bam); done
+```
+* Next prepare the two text files to use as parameters:
+a) List of the sorted bam files to use as input
+```console
+> ls -1 sorted_LB_aligned_bam/ |tr "\n" "\t/" >sorted_bams.txt
+```
+b) List of samplenames (essentially the same list without the "sorted.bam" extension) - named mapping.txt
+```console
+> sed -e 's/_sorted.bam//g' sorted_bams.txt >mapping.txt
+```
+* Then use samtools to feed Pileup2Likelihood like this:
+```console
+> samtools mpileup -q 10 -Q 10 -s $(cat sorted_bams)|java -cp bin/ Pileup2Likelihoods|gzip >post.gz
+```
+The [LepMap3 wiki](https://sourceforge.net/p/lep-map3/wiki/LM3%20Home/) shows how this can be parallelized by running the pipe contig by contig as otherwise this can take hours.
