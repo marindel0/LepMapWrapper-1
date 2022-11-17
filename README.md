@@ -147,6 +147,7 @@ Here are some shortcuts to getting this done.  I am assuming that there is one b
 > mkdir path_for_sorted_bams
 > for file in path_to_bams/*.bam; do samtools sort -@ 30 $file > path_for_sorted_bams/$(basename ${file%\.bam}_sorted.bam); done
 ```
+the -@ specifies the number of threads to use, so set that according to your resources
 * Next prepare the two text files to use as parameters:
 a) List of the sorted bam files to use as input
 ```console
