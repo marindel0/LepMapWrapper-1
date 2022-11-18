@@ -136,10 +136,10 @@ from LepMap3 like this.
 > samtools mpileup -q 10 -Q 10 -s $(cat sorted_bams.txt)|awk -f pileupParser2.awk|awk -f pileup2posterior.awk|gzip >all_fam_post.gz
 ```
 where `sorted_bams.txt` is a list of the sorted bam files to be used as input. The directory where the pipe is run must also contain a list of sample names
-under the name `mapping.txt`.  Running those scripts for a large number of samples can take a while and according to the [LepMap3 wiki](https://sourceforge.net/p/lep-map3/wiki/LM3%20Home/) have been replaced by a java class `Pileup2Likelihoods`. The old scripts seem to have been removed although the wiki still refers to them but the have been repurposed in another git repo 
-[icruz1989/IBDcalculation](https://github.com/icruz1989/IBDcalculation).
+under the name `mapping.txt`.  Running those scripts for a large number of samples can take a long time and according to the [LepMap3 wiki](https://sourceforge.net/p/lep-map3/wiki/LM3%20Home/) have been replaced by a java class `Pileup2Likelihoods`. The old scripts have been removed although the wiki still refers to them but the have been repurposed in another git repo
+[icruz1989/IBDcalculation](https://github.com/icruz1989/IBDcalculation) if you absolutely want to get them.  Anyway, Pileup2Likelihoods seems at first glance to produce identical results >10x faster, that's overnight vs. 8 days with a ddRAD dataset of ~450 individuals.
 
-Here are some shortcuts to getting this done.  I am assuming that there is one bam file per sample and that they are named by sample name.  This is not absolutely required but I won't get into that here.  See the LepMap3 wiki.
+Here are some shortcuts to help.  I am assuming that there is one bam file per sample and that they are named by sample name.  This is not absolutely required but I won't get into that here.  See the LepMap3 wiki.
 
 * First sort the reference-aligned bam files
 ```console
@@ -161,4 +161,11 @@ b) List of samplenames (essentially the same list without the "sorted.bam" exten
 ```console
 > samtools mpileup -q 10 -Q 10 -s $(cat sorted_bams)|java -cp bin/ Pileup2Likelihoods|gzip >post.gz
 ```
-The [LepMap3 wiki](https://sourceforge.net/p/lep-map3/wiki/LM3%20Home/) shows how this can be parallelized by running the pipe contig by contig as otherwise this can take hours. Look for the _Sequencing data processing pipeline_.
+The [LepMap3 wiki](https://sourceforge.net/p/lep-map3/wiki/LM3%20Home/) shows how this can be parallelized by running the pipe contig by contig. Look for the _Sequencing data processing pipeline_.  One omission there is that the bam files must be indexed in order for the -r option to work.
+
+Yet, some shortucts.
+
+> ls -d aligned_sorted_bamfiles/*.bam |tr "\n" "\t/" >sorted_bams_with_path.txt
+> ls -1 LB_aligned_sorted_bamfiles/*.bam |xargs -n1 basename |tr "\n" "\t/" >sorted_bams.txt
+> sed -e 's/_sorted.bam//g' sorted_bams.txt >mapping.txt
+to be continued ...

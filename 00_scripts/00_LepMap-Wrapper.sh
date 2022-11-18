@@ -6,18 +6,52 @@ RUN_STARTS=$(date '+%y%m%d@%H%M')
 
 SCRIP_DIR=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
 
+
 printf "\nLepMapWrapper: The unified pipeline script for running LepMap3 - starting at ${RUN_STARTS} \n" 
 printf "LepMapWrapper script dir: $SCRIP_DIR"
 
+USE_VCF=0
+USE_POST=0
 
-### Make sure input files are passed as parameters
+usage()
+{
+echo "Usage: LepMap-Wrapper.sh  [ -v <vcf_file> OR -l <likelyhood_file.gz>]
+                          [ -p <pedigree_file> ]
+                          
+                          [ -h  #show this message and quit ! ]
+                        
+      Genotype files (gzipped) AND a valid pedigree file must be provided."
+echo
+1>&2
+exit 1
+}
 if [ "$#" -lt 2 ]; then
-    printf "\nSomething is missing. We need both GENOTYPES (in vcf format) and PEDIGREE input files \n"
-    printf "Usage: $0 path_to_vcf_file path_to_pedigreefile \n\n" 1>&2
-    exit 1
+    printf "\nSomething is missing. We need both GENOTYPES (in \"post\" or vcf format) and pedigree input files \n"
+    usage
 fi
-INPUT=$1
-PEDIGREE=$2
+
+while getopts "v:l:p:h" o; do
+
+  case "${o}" in
+     h) usage ;;
+     v) INPUT="${OPTARG}"; USE_VCF=1 ;;
+     l) INPUT="${OPTARG}"; USE_POST=1 ;;
+     p) PEDIGREE="${OPTARG}" ;;
+    *) usage
+  esac
+done
+
+if [ $USE_VCF -eq 0 ] && [ $USE_POST -eq 0 ] ; then 
+    printf "\n%s\n\n" "ERROR: You need to supply genotypes - either a VCF file or a gzipped Pileup2posterior likelyhood file."
+    exit 2
+fi
+if [ $USE_VCF -eq 1 ] && [ $USE_POST -eq 1 ] ; then 
+    printf "\n%s\n\n" "ERROR: You need EITHER a VCF file or a gzipped Pileup2posterior likelyhood file as input, NOT both."
+    exit 2
+fi
+
+### Make sure input files are valid
+
 #echo "Inputfile: $INPUT"
 if [ -f "$INPUT" ]; then
     printf "\n$INPUT exists.\n"
@@ -61,7 +95,12 @@ echo "logfile (parameters): ${LOGFILE}"
 
 {  #Set up the logfile
     printf "Logfile for LepMap3 pipeline run ${RUN_STARTS}\n\n" 
-    printf "%-25s %s\n" "Parameter 1 (VCF file): " $INPUT
+    if [ $USE_VCF -eq 1 ] ; then
+       printf "%-25s %s\n" "Genotypes in VCF format: " $INPUT
+    fi
+    if [ $USE_POST -eq 1 ] ; then
+       printf "%-25s %s\n" "Genotypes as pos likelihoods: " $INPUT
+    fi
     printf "%-25s %s\n" "Parameter 2 (Pedigree): " $PEDIGREE
     printf "%-25s %s\n" "Working directory: " $(pwd)
     printf "%-25s %s\n" "LepMapWrapper script directory: " $SCRIP_DIR
@@ -80,7 +119,7 @@ printf "\nNow you will be asked to enter various parameters\n\n"
 #echo $MIN_COV
 #echo
 echo "This is just for the logfile ..."
-read -p "Enter name of family - default [TheSimpsons]: " FAMILY
+read -p "Enter name of family or families - default [TheSimpsons]: " FAMILY
 FAMILY=${FAMILY:-TheSimpsons}
 echo $FAMILY
 echo
@@ -124,30 +163,22 @@ fi
 }>>$LOGFILE
 
 function ParentCall {
-### Script 03_run_parentcall.sh modified and simplified
 
     printf "Step 3 - Run ParentCall2.\n"
 
-    #It is possible to map multiple families separately (different inversion rearrangement - marker order is not expected to be the same)
-    #, I create here a loop with family name
-    # note that lepmap allow several families to build the map together, they can all be put together in the pedigree file
-    #cat $FAMILY | while read i
-    #do
-    #echo "family" $i
-
-    #variables 
-    #compulsory (file names)
-    #GENO_FILE=$INPUT
     CALL_FILE="${OUTDIR}/03_parent_call_data/data_call_"$CORENAME".gz"
     # make the directory to be on the safe side
     mkdir -p "${OUTDIR}/03_parent_call_data"
-    #touch $CALL_FILE
-    #parameters
+    
+    #parameters TODO add handling for optional parameters
     #SEX="XLimit=2" #to call marker on sex chromosome in a XY system (use Zlimit=2 in a ZW system or nothing if we don't want sex-chromosome markers)
-
-    #run the module
-    #zcat $GENO_FILE | java -cp $LEPMAPDIR ParentCall2 data=$PEDIGREE posteriorFile=- removeNonInformative=1 | gzip > $CALL_FILE
-    java -cp $LEPMAPDIR ParentCall2 data=$PEDIGREE vcfFile=$INPUT removeNonInformative=1 |gzip > $CALL_FILE
+    if [ $USE_VCF -eq 1 ] ; then
+       java -cp $LEPMAPDIR ParentCall2 data=$PEDIGREE vcfFile=$INPUT removeNonInformative=1 |gzip > $CALL_FILE
+    fi
+    if [ $USE_POST -eq 1 ] ; then
+       zcat $INPUT | java -cp $LEPMAPDIR ParentCall2 data=$PEDIGREE posteriorFile=- removeNonInformative=1 | gzip > $CALL_FILE
+    fi
+    
     #the parental call has also put the pedigree as header of the genotype data. To visualize:
     echo "these are the first 8 columns & 10 lines of the output file"
     zcat $CALL_FILE | cut -f 1-8 | head -n 10
