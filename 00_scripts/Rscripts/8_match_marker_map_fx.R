@@ -2,7 +2,6 @@
 #it uses the marker list from 04_filtering to assign a contig & pos to the marker id given by lepmap, 
 #it makes the map more easily explorable, and correspondance with the genome used to align the markers
 #last step also outputs a plot with the female position which allow looking at the repartition of markers along each LG
-#Rscript 01_scripts/Rscripts/match_marker_map.R "0.1" "cov6" "aa" "10" "2" "7"
 
 suppressPackageStartupMessages(library(dplyr))
 

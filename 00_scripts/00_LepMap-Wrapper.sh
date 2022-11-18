@@ -518,18 +518,19 @@ function Order_markers {
             zcat $FILT_FILE | java -cp $LEPMAPDIR OrderMarkers2 evaluateOrder=$ORDER_FILE numThreads=$CPU data=- numMergeIterations=$ITE chromosome=$j $RECOMB_1 $PHASE > $OUT_FILE
         done
     done
+    {
+        printf "\n%s\n" "Parameters for OrderMarkers2"
+        printf "%-25s %s\n" "Number of iterations for merging: " $ITE
+        printf "%-25s %s\n" "Number of refine steps: " $REFINE_STEPS
+        printf "%-25s %s\n" "Number of LGs: " $NB_CHR
+        case $yn in
+            [Yy]* ) echo "JoinSingles Map used";;
+            [Nn]* ) echo "Original Map file used";;
+        esac
+        printf "%-25s %s\n" "Output written to: " "${OUTDIR}/07_order_LG/order_*"
+    }>>$LOGFILE
 }
 Order_markers
-
-{
-    printf "\n%s\n" "OrderMarkers2 parameters"
-    printf "%-25s %s\n" "Number of LGs: " $NB_CHR
-    case $yn in
-        [Yy]* ) echo "JoinSingles Map used";;
-        [Nn]* ) echo "Original Map file used";;
-    esac
-    printf "%-25s %s\n" "Output written to: " "${OUTDIR}/07_order_LG/order_*"
-}>>$LOGFILE
 
 
 function match_markers_and_plot {
