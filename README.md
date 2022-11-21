@@ -27,7 +27,9 @@ It is convenient to copy or symlink your input files and indexed genome / stacks
 respective directories (althoug it is not required).
 Run like so:
 ```console
-$> 00_scripts/00_LepMap-Wrapper.sh /path/to/filtered.snps.vcf /path/to/pedigree_file.tsv
+$> 00_scripts/00_LepMap-Wrapper.sh -v /path/to/filtered.snps.vcf -p /path/to/pedigree_file.tsv
+OR
+$> 00_scripts/00_LepMap-Wrapper.sh -l /path/to/Pileup2likelihood.pos -p /path/to/pedigree_file.tsv
 ```
 The "master script" should now lead you through the rest. You might have to make the script executable
 `chmod +x 00_scripts/00_LepMap-Wrapper.sh` or simply add sh or bash in front.
@@ -48,10 +50,11 @@ run even if some dependencies are missing.  If things go wrong, just try again.
 ## Preparation of input files
 We need two types of input files to get the wrapper-pipeline started:
 
-1) A vcf file containing filtered snps with high genotyping coverage in the family, and
+1) A vcf file containing filtered snps with high genotyping coverage in the family or a posterior likelihood file
+from Pileup2Likelihoods (see below).
 2) A custom pedigree file that is a bit of manual labor to assemble (see below).
 
-LepMap3 allows several types of input, but vcf is what this wrapper is customized for.  Later stages involve
+LepMap3 allows several types of input, but vcf or pos files is what this wrapper is customized for.  Later stages involve
 retrieving DNA sequence from either a *genome* or a stacks `catalog.fasta.gz` file from Stacks. To run them
 you will need either (or both):
 
@@ -88,7 +91,7 @@ or extract the header from the vcf file used as input.  There is a little perl s
 internet called `transposeTabDelimited.pl` in `00_scripts/utilities/` that can be helpful.
 One way to start is to get the list of names from the Stacks catalog like this:
 ```console
-> zcat catalog.calls | head -n 15 | grep '^#CHROM' | cut --complement -f2-9 > file.txt
+$> zcat catalog.calls | head -n 15 | grep '^#CHROM' | cut --complement -f2-9 > file.txt
 ```
 The vcf file can also be used the same way skipping the zcat step.
 
@@ -98,7 +101,7 @@ filtering in populations and then use vcftools to filter rather aggressively.  I
 in Stacks. We only want high coverage loci.
 Here is an example of a pre-filtering step:
 ```console
-> vcftools --vcf AdamsFam.vcf --min-alleles 2 --max-alleles 4 --max-missing 0.9 --mac 15 --remove-indels -c --recode > AdamsFam_filtered.vcf
+$> vcftools --vcf AdamsFam.vcf --min-alleles 2 --max-alleles 4 --max-missing 0.9 --mac 15 --remove-indels -c --recode > AdamsFam_filtered.vcf
 ```
 Note that the --max-missing parameter is a bit counter-intuitive, 0.9 actually means that max allowed missingness is 0.1 or 10%
 
@@ -110,22 +113,22 @@ but here is an example of how this can be done for ncbi genomes wit scaffold nam
 
 * Vcf-sort, bgzip and tabix index the vcf file from Stacks populations:
 ```console
-> vcf-sort AdamsFam_filtered.vcf > AdamsFam_filt_sort.vcf
-> bgzip AdamsFam_filt_sort.vcf
-> tabix AdamsFam_filt_sort.vcf.vcf.gz
+$> vcf-sort AdamsFam_filtered.vcf > AdamsFam_filt_sort.vcf
+$> bgzip AdamsFam_filt_sort.vcf
+$> tabix AdamsFam_filt_sort.vcf.vcf.gz
 ```
 * Generate the list of scaffolds (chromosomes) and unplaced contigs:
 ```console
-> zcat AdamsFam_filt_sort.vcf.vcf.gz | grep -v "^#" | cut -f1 | sort | uniq > AdamsFam_all_contigs.txt
-> grep "NC_" AdamsFam_all_contigs.txt > AdamsFam_scaffolds_only.txt
+$> zcat AdamsFam_filt_sort.vcf.vcf.gz | grep -v "^#" | cut -f1 | sort | uniq > AdamsFam_all_contigs.txt
+$> grep "NC_" AdamsFam_all_contigs.txt > AdamsFam_scaffolds_only.txt
 ```
 * We need the list of chromosomes as a single space separated line with --chr before each entry.
 ```console
-> echo "" $(cat AdamsFam_all_contigs.txt) |sed -e 's/ / --chr /g' -- > chr-contiglist.txt
+$> echo "" $(cat AdamsFam_all_contigs.txt) |sed -e 's/ / --chr /g' -- > chr-contiglist.txt
 ```
 This list can then be used to filter the vcf like so.
 ```console
-> vcftools --vcf AdamsFam_filtered.vcf --recode $(cat chr-contiglist.txt) --out AdamsFam_filt_scaffolds.vcf
+$> vcftools --vcf AdamsFam_filtered.vcf --recode $(cat chr-contiglist.txt) --out AdamsFam_filt_scaffolds.vcf
 ```
 ### Other ways to generate input files
 
@@ -133,39 +136,44 @@ Another way to prepare input data for LepMap3 and, if I understand the paper cor
 directly into posterior probabilities.  The clairmerot/lepmap3 pipeline instructions refer to using the awk scripts pileupParser2.awk and pileup2posterior.awk
 from LepMap3 like this.
 ```console
-> samtools mpileup -q 10 -Q 10 -s $(cat sorted_bams.txt)|awk -f pileupParser2.awk|awk -f pileup2posterior.awk|gzip >all_fam_post.gz
+$> samtools mpileup -q 10 -Q 10 -s $(cat sorted_bams.txt)|awk -f pileupParser2.awk|awk -f pileup2posterior.awk|gzip >all_fam_post.gz
 ```
 where `sorted_bams.txt` is a list of the sorted bam files to be used as input. The directory where the pipe is run must also contain a list of sample names
-under the name `mapping.txt`.  Running those scripts for a large number of samples can take a long time and according to the [LepMap3 wiki](https://sourceforge.net/p/lep-map3/wiki/LM3%20Home/) have been replaced by a java class `Pileup2Likelihoods`. The old scripts have been removed although the wiki still refers to them but the have been repurposed in another git repo
-[icruz1989/IBDcalculation](https://github.com/icruz1989/IBDcalculation) if you absolutely want to get them.  Anyway, Pileup2Likelihoods seems at first glance to produce identical results >10x faster, that's overnight vs. 8 days with a ddRAD dataset of ~450 individuals.
+under the name `mapping.txt`.  Running those scripts for a large number of samples can take a long time and according to the [LepMap3 wiki](https://sourceforge.net/p/lep-map3/wiki/LM3%20Home/) the awk scripts have been replaced by a java class `Pileup2Likelihoods`. The old scripts have been removed although the wiki still refers to them. They can however be found in another git repo
+[icruz1989/IBDcalculation](https://github.com/icruz1989/IBDcalculation) if you absolutely want to get them.  Anyway, Pileup2Likelihoods seems to produce identical results >10x faster, that's hours vs. days with a large dataset.
 
-Here are some shortcuts to help.  I am assuming that there is one bam file per sample and that they are named by sample name.  This is not absolutely required but I won't get into that here.  See the LepMap3 wiki.
+Here are some shortcuts to help.  Assuming that there is one bam file per sample and that they are named by sample name.  This is not absolutely required but let's keep things simple here.  See the LepMap3 wiki for more details.
 
 * First sort the reference-aligned bam files
 ```console
-> mkdir path_for_sorted_bams
-> for file in path_to_bams/*.bam; do samtools sort -@ 30 $file > path_for_sorted_bams/$(basename ${file%\.bam}_sorted.bam); done
+$> mkdir path_for_sorted_bams
+$> for file in path_to_bams/*.bam; do samtools sort -@ 30 $file > path_for_sorted_bams/$(basename ${file%\.bam}_sorted.bam); done
 ```
 The -@ option specifies the number of threads to use, so set that according to your resources.
 * Next prepare the two text files to use as parameters:
 
 a) List of the sorted bam files to use as input
 ```console
-> ls -1 sorted_LB_aligned_bam/ |tr "\n" "\t/" >sorted_bams.txt
+$> ls -1 sorted_LB_aligned_bam/ |tr "\n" "\t/" >sorted_bams.txt
 ```
 b) List of samplenames (essentially the same list without the "sorted.bam" extension) - named mapping.txt
 ```console
-> sed -e 's/_sorted.bam//g' sorted_bams.txt >mapping.txt
+$> sed -e 's/_sorted.bam//g' sorted_bams.txt >mapping.txt
 ```
-* Then use samtools to feed Pileup2Likelihood like this:
+* Then use samtools to feed Pileup2Likelihoods like this:
 ```console
-> samtools mpileup -q 10 -Q 10 -s $(cat sorted_bams)|java -cp bin/ Pileup2Likelihoods|gzip >post.gz
+$> samtools mpileup -q 10 -Q 10 -s $(cat sorted_bams)|java -cp bin/ Pileup2Likelihoods|gzip >post.gz
 ```
-The [LepMap3 wiki](https://sourceforge.net/p/lep-map3/wiki/LM3%20Home/) shows how this can be parallelized by running the pipe contig by contig. Look for the _Sequencing data processing pipeline_.  One omission there is that the bam files must be indexed in order for the -r option to work.
+The [LepMap3 wiki](https://sourceforge.net/p/lep-map3/wiki/LM3%20Home/) shows how this can be parallelized by running the pipe contig by contig. Look for the _Sequencing data processing pipeline_.  One omission there is that the bam files must be indexed in order for the -r option to work.  A neat trick to do that at maximum speed is to use `gnu_parallel`.
+```console
+$> parallel samtools index ::: *.bam
+```
 
-Yet, some shortucts.
 
-> ls -d aligned_sorted_bamfiles/*.bam |tr "\n" "\t/" >sorted_bams_with_path.txt
-> ls -1 LB_aligned_sorted_bamfiles/*.bam |xargs -n1 basename |tr "\n" "\t/" >sorted_bams.txt
-> sed -e 's/_sorted.bam//g' sorted_bams.txt >mapping.txt
-to be continued ...
+Some more shortucts for the record.
+```console
+$> ls -d aligned_sorted_bamfiles/*.bam |tr "\n" "\t/" >sorted_bams_with_path.txt
+$> ls -1 LB_aligned_sorted_bamfiles/*.bam |xargs -n1 basename |tr "\n" "\t/" >sorted_bams.txt
+$> sed -e 's/_sorted.bam//g' sorted_bams.txt >mapping.txt
+```
+to be continued and explained later ...
