@@ -194,11 +194,10 @@ Unused options to avoid:
          
 ENDOFCOMMENT
     read -p "Enter the extra parameters as shown above, separated by space  - default none: "
-    RESPONSE=$REPLY 
-    PARENTCALLOPTIONS="removeNonInformative=1 ${RESPONSE%\\n}"
-    printf "%-25s %s\n" "ParentCall2 options: " $PARENTCALLOPTIONS
+    PARENTCALLOPTIONS="removeNonInformative=1 ${REPLY}" 
+    printf "%s \n" "ParentCall2 options: $PARENTCALLOPTIONS"
     printf "%-25s %s\n" "ParentCall2 output to: " $CALL_FILE >>$LOGFILE
-    printf "%-25s %s\n" "ParentCall2 options: " $PARENTCALLOPTIONS >>$LOGFILE
+    printf "%s \n" "ParentCall2 options: $PARENTCALLOPTIONS" >>$LOGFILE
     
     if [ $USE_VCF -eq 1 ] ; then
        java -cp $LEPMAPDIR ParentCall2 data=$PEDIGREE vcfFile=$INPUT $PARENTCALLOPTIONS |gzip > $CALL_FILE
