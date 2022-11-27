@@ -52,7 +52,7 @@ print "Optional parameters:
 
 -o/--outpath <path>\t:\tPath to write output files to (defaults to current directory)
 
--l/--label\t:\tA short label included at the beginning of each line in mapcomp files.
+-l/--label\t\t:\tA short label included at the beginning of each line in mapcomp files.
 
 -h/--help\t\t:\tPrint this message.
 

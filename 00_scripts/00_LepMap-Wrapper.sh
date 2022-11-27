@@ -102,6 +102,7 @@ echo "logfile (parameters): ${LOGFILE}"
        printf "%-25s %s\n" "Genotypes as pos likelihoods: " $INPUT
     fi
     printf "%-25s %s\n" "Parameter 2 (Pedigree): " $PEDIGREE
+    printf "%-25s %s\n" "Number of samples in pedigree: " $NUM_SAMPLES
     printf "%-25s %s\n" "Working directory: " $(pwd)
     printf "%-25s %s\n" "LepMapWrapper script directory: " $SCRIP_DIR
     printf "%-25s %s\n" "Full path to VCF file: " $(dirname $(readlink -f $INPUT))
@@ -169,14 +170,40 @@ function ParentCall {
     CALL_FILE="${OUTDIR}/03_parent_call_data/data_call_"$CORENAME".gz"
     # make the directory to be on the safe side
     mkdir -p "${OUTDIR}/03_parent_call_data"
+
+    cat <<ENDOFCOMMENT
+This wrapper selects the most basic options for ParentCall2 but there are a number of other options that can be useful:
+
+Additional options:
+         familyLimit=NUM          Required log-odds difference to call a SNP [2.0]
+         ZLimit=NUM               Required log-odds difference to call a SNP with Z inheritance [inf]
+         XLimit=NUM               Required log-odds difference to call a SNP with X inheritance [inf]
+                                    e.g. Xlimit=2 to call markers on sex chromosome in XY system
+                                    and  Zlimit=2 to call markers on sex chromosome in ZW system
+                                    blank if sex-chromosome markers are not wanted.
+         ignoreParentOrder=1      Do not care about the order of parental genotypes [not set]
+         outputParentPosterior=1  Outputs the genotype likelihoods (posteriors) for the parents as well [not set]
+         halfSibs=1               Look for identical parent names for half-sib parental genotype inference [not set]  
+         callMutations=NUM        Calls de novo mutations, max NUM per marker, ignores grandparents and other parameters than familyLimit
+         
+Unused options to avoid:
+    *    removeNonInformative=1   Remove markers that are not informative [* The wrapper does not allow this to be changed]
+    *    vcfFile=file             Read genotype likelihoods (posteriors) from a vcf file [* The wrapper takes care of this]
+    *    posteriorFile=file       Read genotype likelihoods (posteriors) from a text file [* The wrapper takes care of this]
+    *    outputRaw=1              Do not call parents, just output the raw data likelihoods (posteriors) [* This doesn't make sense within the wrapper]
+         
+ENDOFCOMMENT
+    read -p "Enter the extra parameters as shown above, separated by space  - default none: "
+    PARENTCALLOPTIONS="$REPLY removeNonInformative=1"
+    printf "%-25s %s\n\n" "ParentCall2 options: " $PARENTCALLOPTIONS
+    printf "%-25s %s\n\n" "ParentCall2 output to: " $CALL_FILE >>$LOGFILE
+    printf "%-25s %s\n\n" "ParentCall2 options: " $PARENTCALLOPTIONS >>$LOGFILE
     
-    #parameters TODO add handling for optional parameters
-    #SEX="XLimit=2" #to call marker on sex chromosome in a XY system (use Zlimit=2 in a ZW system or nothing if we don't want sex-chromosome markers)
     if [ $USE_VCF -eq 1 ] ; then
-       java -cp $LEPMAPDIR ParentCall2 data=$PEDIGREE vcfFile=$INPUT removeNonInformative=1 |gzip > $CALL_FILE
+       java -cp $LEPMAPDIR ParentCall2 data=$PEDIGREE vcfFile=$INPUT $PARENTCALLOPTIONS |gzip > $CALL_FILE
     fi
     if [ $USE_POST -eq 1 ] ; then
-       zcat $INPUT | java -cp $LEPMAPDIR ParentCall2 data=$PEDIGREE posteriorFile=- removeNonInformative=1 | gzip > $CALL_FILE
+       zcat $INPUT | java -cp $LEPMAPDIR ParentCall2 data=$PEDIGREE posteriorFile=- $PARENTCALLOPTIONS  2> >(tee -a $LOGFILE >&2)| gzip > $CALL_FILE
     fi
     
     #the parental call has also put the pedigree as header of the genotype data. To visualize:
@@ -185,7 +212,8 @@ function ParentCall {
     #done
 }
 ParentCall
-printf "%-25s %s\n\n" "ParentCall2 output to:" $CALL_FILE >>$LOGFILE
+#printf "%-25s %s\n\n" "ParentCall2 output to: " $CALL_FILE >>$LOGFILE
+#printf "%-25s %s\n\n" "ParentCall2 options: " $PARENTCALLOPTIONS >>$LOGFILE
 
 function Filtering {
 ### Script 04_run_filtering apropriated and simplified 
@@ -379,7 +407,7 @@ while true; do
         [Ss]* ) OptimizeSizel;;
         [Mm]* ) SetMoreOptions;;
         [Dd]* ) SetLOD; SetSIZEL; break;;
-        * ) echo "Please answer L(od) S(izel) M(odify) or D(one).";;
+        * ) echo "Please answer L(od) S(izel) M(odify) or D(one)." ;;
     esac
 done
 
@@ -657,11 +685,11 @@ function samtools_genome_extractor {
     printf "You must provide the path to the indexed fasta file which was used for alignment to call SNPs\n"
     while true; do
         read -e -p "Enter the path to the indexed genome.fasta file (can be bgzipped): " GENOME
-        if [ -f "$GENOME" ]; then
-            printf "\n$GENOME file found.\n"
+        if [ -f "$GENOME" ] && [ -f "$GENOME.fai" ] ; then
+            printf "\n$GENOME and $GENOME.fai files found.\n"
             break
         else 
-            echo "file $GENOME does not exist. Please try again!"
+            echo "file $GENOME does not exist or is not indexed. Please try again!"
             read -p "Do you want to try again or quit ? (y/q): " RUNIT
             case $RUNIT in
                 [Yy]* ) echo "Yes!";;
