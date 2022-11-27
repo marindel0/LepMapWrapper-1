@@ -194,7 +194,8 @@ Unused options to avoid:
          
 ENDOFCOMMENT
     read -p "Enter the extra parameters as shown above, separated by space  - default none: "
-    PARENTCALLOPTIONS="$REPLY removeNonInformative=1"
+    RESPONSE=$REPLY 
+    PARENTCALLOPTIONS="${RESPONSE%\\n} removeNonInformative=1"
     printf "%-25s %s\n\n" "ParentCall2 options: " $PARENTCALLOPTIONS
     printf "%-25s %s\n\n" "ParentCall2 output to: " $CALL_FILE >>$LOGFILE
     printf "%-25s %s\n\n" "ParentCall2 options: " $PARENTCALLOPTIONS >>$LOGFILE
