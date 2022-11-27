@@ -195,16 +195,16 @@ Unused options to avoid:
 ENDOFCOMMENT
     read -p "Enter the extra parameters as shown above, separated by space  - default none: "
     RESPONSE=$REPLY 
-    PARENTCALLOPTIONS="${RESPONSE%\\n} removeNonInformative=1"
-    printf "%-25s %s\n\n" "ParentCall2 options: " $PARENTCALLOPTIONS
-    printf "%-25s %s\n\n" "ParentCall2 output to: " $CALL_FILE >>$LOGFILE
-    printf "%-25s %s\n\n" "ParentCall2 options: " $PARENTCALLOPTIONS >>$LOGFILE
+    PARENTCALLOPTIONS="removeNonInformative=1 ${RESPONSE%\\n}"
+    printf "%-25s %s\n" "ParentCall2 options: " $PARENTCALLOPTIONS
+    printf "%-25s %s\n" "ParentCall2 output to: " $CALL_FILE >>$LOGFILE
+    printf "%-25s %s\n" "ParentCall2 options: " $PARENTCALLOPTIONS >>$LOGFILE
     
     if [ $USE_VCF -eq 1 ] ; then
        java -cp $LEPMAPDIR ParentCall2 data=$PEDIGREE vcfFile=$INPUT $PARENTCALLOPTIONS |gzip > $CALL_FILE
     fi
     if [ $USE_POST -eq 1 ] ; then
-       zcat $INPUT | java -cp $LEPMAPDIR ParentCall2 data=$PEDIGREE posteriorFile=- $PARENTCALLOPTIONS  2> >(tee -a $LOGFILE >&2)| gzip > $CALL_FILE
+       zcat $INPUT | java -cp $LEPMAPDIR ParentCall2 data=$PEDIGREE posteriorFile=- $PARENTCALLOPTIONS 2> >(tee -a $LOGFILE >&2)| gzip > $CALL_FILE
     fi
     
     #the parental call has also put the pedigree as header of the genotype data. To visualize:
