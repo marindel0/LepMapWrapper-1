@@ -556,7 +556,7 @@ function Order_markers {
     echo "Refine steps=$REFINE_STEPS"
 
     #RECOMB_1="recombination1=0" # for species with non-recoùmbining male adjust recombination rate to 0
-    #PHASE="outputPhasedData=1" #if we want phased data as output. may be useful for QTL?
+    PHASE="outputPhasedData=1" #if we want phased data as output. may be useful for QTL?
 
     #run the module once for intitial order
     for j in $(seq $NB_CHR)
