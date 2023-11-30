@@ -203,7 +203,7 @@ ENDOFCOMMENT
        java -cp $LEPMAPDIR ParentCall2 data=$PEDIGREE vcfFile=$INPUT $PARENTCALLOPTIONS |gzip > $CALL_FILE
     fi
     if [ $USE_POST -eq 1 ] ; then
-       java -cp $LEPMAPDIR ParentCall2 data=$PEDIGREE posteriorFile=$INPUT $PARENTCALLOPTIONS 2> >(tee -a $LOGFILE >&2)| gzip > $CALL_FILE
+       java -cp $LEPMAPDIR ParentCall2 data=$PEDIGREE posteriorFile=$INPUT $PARENTCALLOPTIONS 2> (tee -a $LOGFILE >&2)| gzip > $CALL_FILE
     fi
     
     #the parental call has also put the pedigree as header of the genotype data. To visualize:
